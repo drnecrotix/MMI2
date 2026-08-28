@@ -121,6 +121,8 @@ async def import_schedule(
         "shifts": result.shifts,
         "skipped_rows": result.skipped_rows,
         "schedule_blocks": result.schedule_blocks,
+        "duplicate_employee_rows": result.duplicate_employee_rows,
+        "conflicting_days": result.conflicting_days,
         "year": year,
         "month": month,
     }
