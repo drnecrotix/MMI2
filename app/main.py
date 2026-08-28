@@ -14,12 +14,13 @@ from app.models import Employee, ShiftEntry
 from app.schemas import LoginRequest, MonthlyScheduleOut, ShiftOut, TokenResponse
 from app.security import create_access_token, decode_access_token
 from app.services.excel_import import import_schedule_xlsx
+from app.services.excel_preview import preview_schedule_xlsx
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.3.0",
+    version="0.4.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -41,6 +42,11 @@ def current_employee(
     return employee
 
 
+def require_admin_key(x_admin_key: str | None) -> None:
+    if x_admin_key != settings.admin_import_key:
+        raise HTTPException(status_code=403, detail="Невалиден admin key.")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": settings.app_name}
@@ -49,6 +55,11 @@ def health():
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={"app_name": settings.app_name})
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request):
+    return templates.TemplateResponse(request=request, name="admin.html", context={"app_name": settings.app_name})
 
 
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
@@ -104,6 +115,38 @@ def my_schedule(
     )
 
 
+@app.post("/api/v1/admin/preview")
+async def preview_schedule(
+    year: int = Form(...),
+    month: int = Form(...),
+    file: UploadFile = File(...),
+    x_admin_key: str | None = Header(default=None),
+):
+    require_admin_key(x_admin_key)
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Невалиден месец.")
+
+    content = await file.read()
+    try:
+        result = preview_schedule_xlsx(content, file.filename or "schedule.xlsx", year, month)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "status": "preview",
+        "filename": file.filename,
+        "year": year,
+        "month": month,
+        "employees_count": len(result.employees),
+        "schedule_blocks": result.schedule_blocks,
+        "duplicate_employee_rows": result.duplicate_employee_rows,
+        "conflicting_days": result.conflicting_days,
+        "unknown_codes": result.unknown_codes,
+        "totals": result.totals,
+        "employees": result.employees,
+    }
+
+
 @app.post("/api/v1/admin/import")
 async def import_schedule(
     year: int = Form(...),
@@ -112,8 +155,7 @@ async def import_schedule(
     x_admin_key: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    if x_admin_key != settings.admin_import_key:
-        raise HTTPException(status_code=403, detail="Невалиден admin key.")
+    require_admin_key(x_admin_key)
     if month < 1 or month > 12:
         raise HTTPException(status_code=400, detail="Невалиден месец.")
     content = await file.read()
