@@ -5,88 +5,244 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ app_name }}</title>
   <style>
-    :root { font-family: Inter, system-ui, sans-serif; color-scheme: dark; }
-    body { margin:0; background:#0b1020; color:#eef2ff; }
-    main { max-width:1100px; margin:auto; padding:40px 20px; }
-    .hero { margin-bottom:28px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; }
-    .card { background:#121a30; border:1px solid #27324f; border-radius:18px; padding:22px; box-shadow:0 16px 40px #0005; }
-    input, button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid #34415f; padding:12px; margin:7px 0; font:inherit; }
-    input { background:#0d1529; color:#fff; }
-    button { background:#536dfe; color:#fff; border:0; cursor:pointer; font-weight:700; }
-    button:hover { filter:brightness(1.08); }
-    .calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:16px; }
-    .day { min-height:74px; border:1px solid #2d3957; border-radius:10px; padding:8px; background:#0d1529; }
-    .day b { display:block; opacity:.7; font-size:12px; }
-    .tag { margin-top:8px; font-size:13px; font-weight:700; }
-    .day .tag-day { color:#ffd166; } .day .tag-night { color:#9ad1ff; }
-    .day .tag-rest { color:#8ee3a1; } .day .tag-leave { color:#ff9ec4; }
-    .day .tag-compensation { color:#cbb7ff; } .day .tag-unknown { color:#ffb38a; }
-    pre { white-space:pre-wrap; background:#080d18; padding:12px; border-radius:10px; overflow:auto; }
-    small { color:#aab4d0; }
+    :root {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: dark;
+      --bg:#08101d; --panel:#101a2b; --panel2:#0b1422; --border:#263750;
+      --text:#eef5ff; --muted:#93a5bd; --accent:#4f7cff;
+      --day:#f2b84b; --night:#6ea8ff; --leave:#b987ff; --sick:#ff6f7d; --rest:#6f8096; --unknown:#ff995e;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; background:radial-gradient(circle at top,#12213a 0,#08101d 42%); color:var(--text); }
+    button,input { font:inherit; }
+    button { cursor:pointer; }
+    main { width:min(1180px,100%); margin:auto; padding:28px 18px 50px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:26px; }
+    .brand h1 { font-size:clamp(24px,5vw,36px); margin:0; letter-spacing:-.03em; }
+    .brand p { margin:5px 0 0; color:var(--muted); }
+    .card { background:rgba(16,26,43,.94); border:1px solid var(--border); border-radius:22px; box-shadow:0 20px 60px #0006; }
+    .login { max-width:520px; margin:8vh auto 0; padding:30px; }
+    .login h2 { margin:0 0 8px; }
+    .login p { color:var(--muted); margin:0 0 22px; }
+    label { display:block; color:var(--muted); font-size:13px; font-weight:700; margin-bottom:7px; }
+    input { width:100%; border:1px solid #32445f; background:#091321; color:#fff; border-radius:13px; padding:14px 15px; outline:none; }
+    input:focus { border-color:#6e92ff; box-shadow:0 0 0 3px #4f7cff22; }
+    .primary { width:100%; margin-top:12px; border:0; border-radius:13px; padding:14px 16px; background:var(--accent); color:#fff; font-weight:800; }
+    .message { min-height:22px; color:#ff9ca7; margin:12px 0 0; font-size:14px; }
+    .hidden { display:none !important; }
+    .dashboard { display:grid; gap:18px; }
+    .profile { padding:20px 22px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; }
+    .profile-name { font-size:22px; font-weight:850; }
+    .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; border:1px solid #32445f; background:#0b1525; border-radius:999px; padding:7px 10px; color:#bdcbe0; font-size:13px; }
+    .team { color:#fff; font-weight:850; }
+    .logout { width:auto; border:1px solid #3a4a62; background:transparent; color:#cad6e8; padding:10px 14px; border-radius:11px; }
+    .calendar-card { padding:18px; }
+    .calendar-head { display:grid; grid-template-columns:46px 1fr 46px; align-items:center; gap:10px; margin-bottom:16px; }
+    .nav { border:1px solid #31435d; background:#0b1525; color:#fff; border-radius:11px; height:42px; font-size:20px; }
+    #monthTitle { text-align:center; font-size:21px; font-weight:850; text-transform:capitalize; }
+    .weekdays,.calendar { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:7px; }
+    .weekday { text-align:center; padding:5px 0 8px; color:#8193ac; font-size:12px; font-weight:800; }
+    .day { position:relative; min-height:108px; border:1px solid #283a54; border-radius:14px; background:#0a1423; padding:10px; overflow:hidden; }
+    .day.empty { background:transparent; border-color:transparent; }
+    .day.today { outline:2px solid #fff8; outline-offset:1px; }
+    .date { font-size:13px; color:#8fa1ba; font-weight:800; }
+    .shift-code { font-size:27px; font-weight:900; line-height:1; margin-top:13px; }
+    .shift-label { margin-top:7px; font-size:12px; font-weight:750; color:#cbd6e5; }
+    .type-day { border-color:#f2b84b77; background:#2a2113; } .type-day .shift-code { color:var(--day); }
+    .type-night { border-color:#6ea8ff77; background:#101d31; } .type-night .shift-code { color:var(--night); }
+    .type-leave { border-color:#b987ff77; background:#20162e; } .type-leave .shift-code { color:var(--leave); }
+    .type-sick_leave { border-color:#ff6f7d77; background:#2b151b; } .type-sick_leave .shift-code { color:var(--sick); }
+    .type-rest { opacity:.72; } .type-rest .shift-code { color:var(--rest); font-size:22px; }
+    .type-unknown { border-color:#ff995e77; } .type-unknown .shift-code { color:var(--unknown); }
+    .legend { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0 4px; }
+    .legend span { display:inline-flex; gap:7px; align-items:center; color:#b7c5d9; font-size:12px; }
+    .dot { width:9px; height:9px; border-radius:50%; background:currentColor; }
+    .summary { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-top:18px; }
+    .stat { background:#0a1423; border:1px solid #263750; padding:12px; border-radius:13px; text-align:center; }
+    .stat strong { display:block; font-size:20px; } .stat small { color:#8da0ba; }
+    details.admin { padding:0; overflow:hidden; }
+    details.admin summary { cursor:pointer; padding:18px 20px; font-weight:800; color:#b8c6da; }
+    .admin-body { padding:0 20px 20px; display:grid; gap:10px; }
+    .admin-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .admin button { border:0; border-radius:12px; padding:12px; background:#324561; color:#fff; font-weight:800; }
+    pre { margin:0; white-space:pre-wrap; background:#07101c; border:1px solid #23344d; border-radius:12px; padding:12px; color:#adc0d9; overflow:auto; }
+    @media (max-width:700px) {
+      main { padding:18px 10px 35px; }
+      .topbar { margin-bottom:16px; }
+      .calendar-card { padding:11px; }
+      .weekdays,.calendar { gap:4px; }
+      .day { min-height:82px; padding:7px; border-radius:10px; }
+      .shift-code { font-size:21px; margin-top:9px; }
+      .shift-label { display:none; }
+      .summary { grid-template-columns:repeat(2,1fr); }
+      .weekday { font-size:10px; }
+      .profile { padding:16px; }
+    }
   </style>
 </head>
 <body>
 <main>
-  <div class="hero">
-    <h1>MMI2 Schedule System</h1>
-    <p>Импорт на месечни Excel графици и персонален календар за служителите.</p>
+  <div class="topbar">
+    <div class="brand"><h1>MMI2 График</h1><p>Персонален месечен работен календар</p></div>
   </div>
-  <div class="grid">
-    <section class="card">
-      <h2>Служител</h2>
-      <input id="workNumber" placeholder="Работен номер">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input id="year" type="number" min="2020" max="2100">
-        <input id="month" type="number" min="1" max="12">
+
+  <section id="loginView" class="card login">
+    <h2>Виж своя график</h2>
+    <p>Въведи работния си номер. Ще бъдат показани само данните за твоя график.</p>
+    <label for="workNumber">Работен номер</label>
+    <input id="workNumber" inputmode="numeric" autocomplete="off" placeholder="Напр. 12345">
+    <button class="primary" id="loginButton" onclick="loginAndLoad()">Вход</button>
+    <div id="loginMessage" class="message"></div>
+  </section>
+
+  <div id="scheduleView" class="dashboard hidden">
+    <section class="card profile">
+      <div>
+        <div id="employeeName" class="profile-name"></div>
+        <div class="meta">
+          <span class="pill">Раб. № <strong id="employeeNumber"></strong></span>
+          <span class="pill">Смяна <strong id="employeeTeam" class="team">-</strong></span>
+        </div>
       </div>
-      <button onclick="loadSchedule()">Покажи графика</button>
-      <p id="employee"></p>
+      <button class="logout" onclick="logout()">Изход</button>
+    </section>
+
+    <section class="card calendar-card">
+      <div class="calendar-head">
+        <button class="nav" aria-label="Предишен месец" onclick="changeMonth(-1)">‹</button>
+        <div id="monthTitle"></div>
+        <button class="nav" aria-label="Следващ месец" onclick="changeMonth(1)">›</button>
+      </div>
+      <div class="weekdays">
+        <div class="weekday">ПОН</div><div class="weekday">ВТО</div><div class="weekday">СРЯ</div>
+        <div class="weekday">ЧЕТ</div><div class="weekday">ПЕТ</div><div class="weekday">СЪБ</div><div class="weekday">НЕД</div>
+      </div>
       <div id="calendar" class="calendar"></div>
-    </section>
-    <section class="card">
-      <h2>Административен импорт</h2>
-      <small>Admin key се задава в .env и не трябва да се публикува.</small>
-      <input id="adminKey" type="password" placeholder="Admin import key">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input id="importYear" type="number" min="2020" max="2100">
-        <input id="importMonth" type="number" min="1" max="12">
+      <div class="legend">
+        <span style="color:var(--day)"><i class="dot"></i>Дневна</span>
+        <span style="color:var(--night)"><i class="dot"></i>Нощна</span>
+        <span style="color:var(--leave)"><i class="dot"></i>Отпуск</span>
+        <span style="color:var(--sick)"><i class="dot"></i>Болничен</span>
+        <span style="color:var(--rest)"><i class="dot"></i>Почивка</span>
       </div>
-      <input id="excel" type="file" accept=".xlsx">
-      <button onclick="uploadSchedule()">Импортирай Excel</button>
-      <pre id="importResult">Няма извършен импорт.</pre>
+      <div id="summary" class="summary"></div>
     </section>
+
+    <details class="card admin">
+      <summary>Административен импорт</summary>
+      <div class="admin-body">
+        <label for="adminKey">Admin import key</label>
+        <input id="adminKey" type="password" autocomplete="off">
+        <div class="admin-grid">
+          <input id="importYear" type="number" min="2020" max="2100" aria-label="Година">
+          <input id="importMonth" type="number" min="1" max="12" aria-label="Месец">
+        </div>
+        <input id="excel" type="file" accept=".xlsx">
+        <button onclick="uploadSchedule()">Импортирай Excel</button>
+        <pre id="importResult">Няма извършен импорт.</pre>
+      </div>
+    </details>
   </div>
 </main>
 <script>
 const now = new Date();
-for (const id of ['year','importYear']) document.getElementById(id).value = now.getFullYear();
-for (const id of ['month','importMonth']) document.getElementById(id).value = now.getMonth()+1;
+let token = null;
+let currentYear = now.getFullYear();
+let currentMonth = now.getMonth() + 1;
 
-async function loadSchedule() {
+document.getElementById('importYear').value = currentYear;
+document.getElementById('importMonth').value = currentMonth;
+document.getElementById('workNumber').addEventListener('keydown', e => { if (e.key === 'Enter') loginAndLoad(); });
+
+const labels = {
+  day:'Дневна смяна', night:'Нощна смяна', leave:'Отпуск', sick_leave:'Болничен', rest:'Почивка', unknown:'Неизвестен код'
+};
+const displayCodes = { day:'1', night:'2', leave:'О', sick_leave:'Б', rest:'•' };
+
+async function loginAndLoad() {
   const workNumber = document.getElementById('workNumber').value.trim();
-  const year = Number(document.getElementById('year').value);
-  const month = Number(document.getElementById('month').value);
-  const login = await fetch('/api/v1/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({work_number:workNumber})});
-  if (!login.ok) return alert((await login.json()).detail || 'Грешка при вход.');
-  const auth = await login.json();
-  const response = await fetch(`/api/v1/me/schedule/${year}/${month}`, {headers:{Authorization:`Bearer ${auth.access_token}`}});
-  if (!response.ok) return alert((await response.json()).detail || 'Грешка при графика.');
-  const data = await response.json();
-  document.getElementById('employee').textContent = `${data.employee_name} - ${data.work_number}`;
-  renderCalendar(year, month, data.shifts);
+  const message = document.getElementById('loginMessage');
+  if (!workNumber) { message.textContent='Въведи работен номер.'; return; }
+  message.textContent='';
+  const button = document.getElementById('loginButton');
+  button.disabled = true; button.textContent='Проверка...';
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({work_number:workNumber})
+    });
+    const auth = await response.json();
+    if (!response.ok) throw new Error(auth.detail || 'Служителят не е намерен.');
+    token = auth.access_token;
+    document.getElementById('employeeName').textContent = auth.employee_name;
+    document.getElementById('employeeNumber').textContent = auth.work_number;
+    document.getElementById('employeeTeam').textContent = auth.team || '-';
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('scheduleView').classList.remove('hidden');
+    await loadSchedule();
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false; button.textContent='Вход';
+  }
 }
 
-function renderCalendar(year, month, shifts) {
-  const root = document.getElementById('calendar'); root.innerHTML='';
-  const lookup = Object.fromEntries(shifts.map(s => [Number(s.work_date.slice(-2)), s]));
-  const days = new Date(year, month, 0).getDate();
+async function loadSchedule() {
+  if (!token) return;
+  const response = await fetch(`/api/v1/me/schedule/${currentYear}/${currentMonth}`, {
+    headers:{Authorization:`Bearer ${token}`}
+  });
+  const data = await response.json();
+  if (!response.ok) { alert(data.detail || 'Грешка при зареждане на графика.'); return; }
+  document.getElementById('employeeName').textContent = data.employee_name;
+  document.getElementById('employeeNumber').textContent = data.work_number;
+  document.getElementById('employeeTeam').textContent = data.team || '-';
+  renderCalendar(data);
+}
+
+function renderCalendar(data) {
+  const monthDate = new Date(data.year, data.month - 1, 1);
+  document.getElementById('monthTitle').textContent = monthDate.toLocaleDateString('bg-BG',{month:'long',year:'numeric'});
+  const root = document.getElementById('calendar');
+  root.innerHTML = '';
+  const lookup = Object.fromEntries(data.shifts.map(s => [Number(s.work_date.slice(-2)), s]));
+  const days = new Date(data.year, data.month, 0).getDate();
+  const firstWeekday = (new Date(data.year, data.month - 1, 1).getDay() + 6) % 7;
+  for (let i=0; i<firstWeekday; i++) {
+    const blank=document.createElement('div'); blank.className='day empty'; root.appendChild(blank);
+  }
+  const totals={day:0,night:0,leave:0,sick_leave:0,rest:0};
   for (let d=1; d<=days; d++) {
-    const s = lookup[d];
-    const el=document.createElement('div'); el.className='day';
-    el.innerHTML=`<b>${d}</b>${s ? `<div class="tag tag-${s.shift_type}">${escapeHtml(s.raw_code)}<br><small>${s.shift_type}</small></div>` : ''}`;
+    const shift = lookup[d] || {shift_type:'rest',raw_code:''};
+    if (totals[shift.shift_type] !== undefined) totals[shift.shift_type]++;
+    const el=document.createElement('div');
+    el.className=`day type-${shift.shift_type}`;
+    if (data.year===now.getFullYear() && data.month===now.getMonth()+1 && d===now.getDate()) el.classList.add('today');
+    const code = shift.raw_code || displayCodes[shift.shift_type] || '?';
+    el.innerHTML=`<div class="date">${d}</div><div class="shift-code">${escapeHtml(code)}</div><div class="shift-label">${escapeHtml(labels[shift.shift_type] || 'Неизвестен код')}</div>`;
     root.appendChild(el);
   }
+  renderSummary(totals);
+}
+
+function renderSummary(totals) {
+  const items=[['Дневни',totals.day],['Нощни',totals.night],['Отпуск',totals.leave],['Болнични',totals.sick_leave],['Почивни',totals.rest]];
+  document.getElementById('summary').innerHTML = items.map(([label,value]) => `<div class="stat"><strong>${value}</strong><small>${label}</small></div>`).join('');
+}
+
+function changeMonth(delta) {
+  currentMonth += delta;
+  if (currentMonth < 1) { currentMonth=12; currentYear--; }
+  if (currentMonth > 12) { currentMonth=1; currentYear++; }
+  loadSchedule();
+}
+
+function logout() {
+  token=null;
+  document.getElementById('scheduleView').classList.add('hidden');
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('workNumber').value='';
+  document.getElementById('workNumber').focus();
 }
 
 async function uploadSchedule() {
@@ -96,9 +252,14 @@ async function uploadSchedule() {
   fd.append('year', document.getElementById('importYear').value);
   fd.append('month', document.getElementById('importMonth').value);
   fd.append('file', file);
-  const response=await fetch('/api/v1/admin/import', {method:'POST', headers:{'X-Admin-Key':document.getElementById('adminKey').value}, body:fd});
+  const result=document.getElementById('importResult');
+  result.textContent='Импортиране...';
+  const response=await fetch('/api/v1/admin/import', {
+    method:'POST', headers:{'X-Admin-Key':document.getElementById('adminKey').value}, body:fd
+  });
   const data=await response.json();
-  document.getElementById('importResult').textContent=JSON.stringify(data,null,2);
+  result.textContent=JSON.stringify(data,null,2);
+  if (response.ok) loadSchedule();
 }
 
 function escapeHtml(value) {
