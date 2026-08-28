@@ -11,6 +11,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     employee_name: str
     work_number: str
+    team: str | None = None
 
 
 class ShiftOut(BaseModel):
@@ -22,6 +23,7 @@ class ShiftOut(BaseModel):
 class MonthlyScheduleOut(BaseModel):
     employee_name: str
     work_number: str
+    team: str | None = None
     year: int
     month: int
     shifts: list[ShiftOut]
