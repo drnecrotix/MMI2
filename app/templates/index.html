@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_name }}</title>
+  <style>
+    :root { font-family: Inter, system-ui, sans-serif; color-scheme: dark; }
+    body { margin:0; background:#0b1020; color:#eef2ff; }
+    main { max-width:1100px; margin:auto; padding:40px 20px; }
+    .hero { margin-bottom:28px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; }
+    .card { background:#121a30; border:1px solid #27324f; border-radius:18px; padding:22px; box-shadow:0 16px 40px #0005; }
+    input, button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid #34415f; padding:12px; margin:7px 0; font:inherit; }
+    input { background:#0d1529; color:#fff; }
+    button { background:#536dfe; color:#fff; border:0; cursor:pointer; font-weight:700; }
+    button:hover { filter:brightness(1.08); }
+    .calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-top:16px; }
+    .day { min-height:74px; border:1px solid #2d3957; border-radius:10px; padding:8px; background:#0d1529; }
+    .day b { display:block; opacity:.7; font-size:12px; }
+    .tag { margin-top:8px; font-size:13px; font-weight:700; }
+    .day .tag-day { color:#ffd166; } .day .tag-night { color:#9ad1ff; }
+    .day .tag-rest { color:#8ee3a1; } .day .tag-leave { color:#ff9ec4; }
+    .day .tag-compensation { color:#cbb7ff; } .day .tag-unknown { color:#ffb38a; }
+    pre { white-space:pre-wrap; background:#080d18; padding:12px; border-radius:10px; overflow:auto; }
+    small { color:#aab4d0; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="hero">
+    <h1>MMI2 Schedule System</h1>
+    <p>Импорт на месечни Excel графици и персонален календар за служителите.</p>
+  </div>
+  <div class="grid">
+    <section class="card">
+      <h2>Служител</h2>
+      <input id="workNumber" placeholder="Работен номер">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input id="year" type="number" min="2020" max="2100">
+        <input id="month" type="number" min="1" max="12">
+      </div>
+      <button onclick="loadSchedule()">Покажи графика</button>
+      <p id="employee"></p>
+      <div id="calendar" class="calendar"></div>
+    </section>
+    <section class="card">
+      <h2>Административен импорт</h2>
+      <small>Admin key се задава в .env и не трябва да се публикува.</small>
+      <input id="adminKey" type="password" placeholder="Admin import key">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input id="importYear" type="number" min="2020" max="2100">
+        <input id="importMonth" type="number" min="1" max="12">
+      </div>
+      <input id="excel" type="file" accept=".xlsx">
+      <button onclick="uploadSchedule()">Импортирай Excel</button>
+      <pre id="importResult">Няма извършен импорт.</pre>
+    </section>
+  </div>
+</main>
+<script>
+const now = new Date();
+for (const id of ['year','importYear']) document.getElementById(id).value = now.getFullYear();
+for (const id of ['month','importMonth']) document.getElementById(id).value = now.getMonth()+1;
+
+async function loadSchedule() {
+  const workNumber = document.getElementById('workNumber').value.trim();
+  const year = Number(document.getElementById('year').value);
+  const month = Number(document.getElementById('month').value);
+  const login = await fetch('/api/v1/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({work_number:workNumber})});
+  if (!login.ok) return alert((await login.json()).detail || 'Грешка при вход.');
+  const auth = await login.json();
+  const response = await fetch(`/api/v1/me/schedule/${year}/${month}`, {headers:{Authorization:`Bearer ${auth.access_token}`}});
+  if (!response.ok) return alert((await response.json()).detail || 'Грешка при графика.');
+  const data = await response.json();
+  document.getElementById('employee').textContent = `${data.employee_name} - ${data.work_number}`;
+  renderCalendar(year, month, data.shifts);
+}
+
+function renderCalendar(year, month, shifts) {
+  const root = document.getElementById('calendar'); root.innerHTML='';
+  const lookup = Object.fromEntries(shifts.map(s => [Number(s.work_date.slice(-2)), s]));
+  const days = new Date(year, month, 0).getDate();
+  for (let d=1; d<=days; d++) {
+    const s = lookup[d];
+    const el=document.createElement('div'); el.className='day';
+    el.innerHTML=`<b>${d}</b>${s ? `<div class="tag tag-${s.shift_type}">${escapeHtml(s.raw_code)}<br><small>${s.shift_type}</small></div>` : ''}`;
+    root.appendChild(el);
+  }
+}
+
+async function uploadSchedule() {
+  const file=document.getElementById('excel').files[0];
+  if (!file) return alert('Избери .xlsx файл.');
+  const fd=new FormData();
+  fd.append('year', document.getElementById('importYear').value);
+  fd.append('month', document.getElementById('importMonth').value);
+  fd.append('file', file);
+  const response=await fetch('/api/v1/admin/import', {method:'POST', headers:{'X-Admin-Key':document.getElementById('adminKey').value}, body:fd});
+  const data=await response.json();
+  document.getElementById('importResult').textContent=JSON.stringify(data,null,2);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+</script>
+</body>
+</html>
