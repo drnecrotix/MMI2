@@ -29,7 +29,10 @@ DIRECT_SHIFT_ALIASES = {
     "К": "compensation", "КОМП": "compensation", "КОМПЕНСАЦИЯ": "compensation", "COMP": "compensation",
     "П": "rest", "ПОЧ": "rest", "ПОЧИВКА": "rest", "REST": "rest", "OFF": "rest",
 }
-WORK_CODES = {"1", "2", "8", "I", "І"}
+# Confirmed from the formulas in the supplied MMI2 workbook:
+# 1 = 12 hours (day), 2 = 13.1428 hours (night), 8 = 8-hour day.
+DAY_WORK_CODES = {"1", "8", "I", "І"}
+NIGHT_WORK_CODES = {"2"}
 NIGHT_PATTERN_MARKERS = {"Н", "N", "NIGHT", "НОЩ", "НОЩНА"}
 DAY_PATTERN_MARKERS = {"Д", "D", "DAY", "ДЕН", "ДНЕВНА", "А", "Б", "В", "Г"}
 
@@ -181,12 +184,10 @@ def _shift_type(value: object, pattern_marker: str) -> tuple[str, str]:
     code = _code(value)
     if code in DIRECT_SHIFT_ALIASES:
         return DIRECT_SHIFT_ALIASES[code], raw_code
-    if code in WORK_CODES:
-        if pattern_marker in NIGHT_PATTERN_MARKERS:
-            return "night", raw_code
-        if pattern_marker in DAY_PATTERN_MARKERS or pattern_marker:
-            return "day", raw_code
-        return "work", raw_code
+    if code in DAY_WORK_CODES:
+        return "day", raw_code
+    if code in NIGHT_WORK_CODES:
+        return "night", raw_code
     if not code:
         return "rest", ""
     return "unknown", raw_code
