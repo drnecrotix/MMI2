@@ -12,6 +12,7 @@ class Employee(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     work_number: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(255), index=True)
+    team: Mapped[str | None] = mapped_column(String(1), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     shifts: Mapped[list["ShiftEntry"]] = relationship(back_populates="employee", cascade="all, delete-orphan")
 

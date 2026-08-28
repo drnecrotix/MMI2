@@ -19,7 +19,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version="0.2.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -61,12 +61,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         access_token=create_access_token(employee.work_number),
         employee_name=employee.full_name,
         work_number=employee.work_number,
+        team=employee.team,
     )
 
 
 @app.get("/api/v1/me")
 def me(employee: Employee = Depends(current_employee)):
-    return {"work_number": employee.work_number, "full_name": employee.full_name}
+    return {
+        "work_number": employee.work_number,
+        "full_name": employee.full_name,
+        "team": employee.team,
+    }
 
 
 @app.get("/api/v1/me/schedule/{year}/{month}", response_model=MonthlyScheduleOut)
@@ -92,6 +97,7 @@ def my_schedule(
     return MonthlyScheduleOut(
         employee_name=employee.full_name,
         work_number=employee.work_number,
+        team=employee.team,
         year=year,
         month=month,
         shifts=[ShiftOut(work_date=e.work_date, shift_type=e.shift_type, raw_code=e.raw_code) for e in entries],
@@ -120,6 +126,9 @@ async def import_schedule(
         "employees": result.employees,
         "shifts": result.shifts,
         "skipped_rows": result.skipped_rows,
+        "schedule_blocks": result.schedule_blocks,
+        "duplicate_employee_rows": result.duplicate_employee_rows,
+        "conflicting_days": result.conflicting_days,
         "year": year,
         "month": month,
     }
