@@ -19,7 +19,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version="0.2.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -120,6 +120,7 @@ async def import_schedule(
         "employees": result.employees,
         "shifts": result.shifts,
         "skipped_rows": result.skipped_rows,
+        "schedule_blocks": result.schedule_blocks,
         "year": year,
         "month": month,
     }
