@@ -61,12 +61,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         access_token=create_access_token(employee.work_number),
         employee_name=employee.full_name,
         work_number=employee.work_number,
+        team=employee.team,
     )
 
 
 @app.get("/api/v1/me")
 def me(employee: Employee = Depends(current_employee)):
-    return {"work_number": employee.work_number, "full_name": employee.full_name}
+    return {
+        "work_number": employee.work_number,
+        "full_name": employee.full_name,
+        "team": employee.team,
+    }
 
 
 @app.get("/api/v1/me/schedule/{year}/{month}", response_model=MonthlyScheduleOut)
@@ -92,6 +97,7 @@ def my_schedule(
     return MonthlyScheduleOut(
         employee_name=employee.full_name,
         work_number=employee.work_number,
+        team=employee.team,
         year=year,
         month=month,
         shifts=[ShiftOut(work_date=e.work_date, shift_type=e.shift_type, raw_code=e.raw_code) for e in entries],
