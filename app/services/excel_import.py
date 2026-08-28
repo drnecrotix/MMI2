@@ -22,19 +22,7 @@ NAME_HEADERS = {
     "име, фамилия", "име фамилия", "име", "име на служителя", "служител",
     "трите имена", "name", "employee",
 }
-
-DIRECT_SHIFT_ALIASES = {
-    "О": "leave", "ОТП": "leave", "ОТПУСК": "leave", "LEAVE": "leave", "VACATION": "leave",
-    "Б": "sick_leave", "БОЛ": "sick_leave", "БОЛНИЧЕН": "sick_leave", "SICK": "sick_leave",
-    "К": "compensation", "КОМП": "compensation", "КОМПЕНСАЦИЯ": "compensation", "COMP": "compensation",
-    "П": "rest", "ПОЧ": "rest", "ПОЧИВКА": "rest", "REST": "rest", "OFF": "rest",
-}
-# Confirmed from the formulas in the supplied MMI2 workbook:
-# 1 = 12 hours (day), 2 = 13.1428 hours (night), 8 = 8-hour day.
-DAY_WORK_CODES = {"1", "8", "I", "І"}
-NIGHT_WORK_CODES = {"2"}
-NIGHT_PATTERN_MARKERS = {"Н", "N", "NIGHT", "НОЩ", "НОЩНА"}
-DAY_PATTERN_MARKERS = {"Д", "D", "DAY", "ДЕН", "ДНЕВНА", "А", "Б", "В", "Г"}
+TEAM_CODES = {"А", "Б", "В", "Г"}
 
 
 @dataclass
@@ -51,13 +39,12 @@ class ImportResult:
 class ScheduleBlock:
     header_row: int
     days_row: int
-    pattern_row: int
     first_employee_row: int
     last_employee_row: int
     work_col: int
     name_col: int
+    team_col: int
     day_columns: dict[int, int]
-    day_patterns: dict[int, str]
 
 
 def _norm(value: object) -> str:
@@ -116,20 +103,27 @@ def _find_days_row(ws, header_row: int, year: int, month: int) -> tuple[int, dic
     return None
 
 
-def _is_employee_row(ws, row: int, work_col: int, name_col: int) -> bool:
+def _is_employee_row(ws, row: int, work_col: int, name_col: int, team_col: int) -> bool:
     work_number = _raw(ws.cell(row, work_col).value)
     full_name = _raw(ws.cell(row, name_col).value)
-    return bool(work_number and full_name and any(ch.isdigit() for ch in work_number) and len(full_name) >= 3)
+    team = _code(ws.cell(row, team_col).value)
+    return bool(
+        work_number
+        and full_name
+        and any(ch.isdigit() for ch in work_number)
+        and len(full_name) >= 3
+        and team in TEAM_CODES
+    )
 
 
-def _find_employee_bounds(ws, start_row: int, work_col: int, name_col: int) -> tuple[int, int] | None:
+def _find_employee_bounds(ws, start_row: int, work_col: int, name_col: int, team_col: int) -> tuple[int, int] | None:
     first: int | None = None
     last: int | None = None
     empty_run = 0
     for row in range(start_row, ws.max_row + 1):
         if _find_header_columns(ws, row) and first is not None:
             break
-        if _is_employee_row(ws, row, work_col, name_col):
+        if _is_employee_row(ws, row, work_col, name_col, team_col):
             first = row if first is None else first
             last = row
             empty_run = 0
@@ -155,11 +149,15 @@ def _discover_blocks(ws, year: int, month: int) -> list[ScheduleBlock]:
             row += 1
             continue
         days_row, day_columns = days_info
-        pattern_row = days_row + 2
-        pattern_values = [_code(ws.cell(pattern_row, col).value) for col in day_columns]
-        if not any(v in NIGHT_PATTERN_MARKERS or v in DAY_PATTERN_MARKERS for v in pattern_values):
-            pattern_row = days_row + 1
-        bounds = _find_employee_bounds(ws, pattern_row + 1, work_col, name_col)
+
+        # In the provided MMI2 workbook the employee shift (А/Б/В/Г) is stored
+        # in the column immediately before the first date column. We use the
+        # employee's own value rather than the block heading, because a block can
+        # contain employees assigned to another permanent shift.
+        first_day_col = min(day_columns)
+        team_col = first_day_col - 1
+
+        bounds = _find_employee_bounds(ws, days_row + 1, work_col, name_col, team_col)
         if not bounds:
             row += 1
             continue
@@ -167,29 +165,41 @@ def _discover_blocks(ws, year: int, month: int) -> list[ScheduleBlock]:
         blocks.append(ScheduleBlock(
             header_row=row,
             days_row=days_row,
-            pattern_row=pattern_row,
             first_employee_row=first_employee_row,
             last_employee_row=last_employee_row,
             work_col=work_col,
             name_col=name_col,
+            team_col=team_col,
             day_columns=day_columns,
-            day_patterns={col: _code(ws.cell(pattern_row, col).value) for col in day_columns},
         ))
         row = last_employee_row + 1
     return blocks
 
 
-def _shift_type(value: object, pattern_marker: str) -> tuple[str, str]:
+def _shift_type(value: object) -> tuple[str, str]:
+    """Map only the confirmed MMI2 legend supplied by the user.
+
+    О or 0 = leave
+    Б = sick leave
+    1 = day shift
+    2 = night shift
+    empty = scheduled rest
+
+    Any other value is preserved as unknown instead of being guessed.
+    """
     raw_code = _raw(value)
     code = _code(value)
-    if code in DIRECT_SHIFT_ALIASES:
-        return DIRECT_SHIFT_ALIASES[code], raw_code
-    if code in DAY_WORK_CODES:
-        return "day", raw_code
-    if code in NIGHT_WORK_CODES:
-        return "night", raw_code
+
     if not code:
         return "rest", ""
+    if code in {"О", "0"}:
+        return "leave", raw_code
+    if code == "Б":
+        return "sick_leave", raw_code
+    if code == "1":
+        return "day", raw_code
+    if code == "2":
+        return "night", raw_code
     return "unknown", raw_code
 
 
@@ -209,23 +219,27 @@ def import_schedule_xlsx(db: Session, content: bytes, filename: str, year: int, 
 
         for block in blocks:
             for row in range(block.first_employee_row, block.last_employee_row + 1):
-                if not _is_employee_row(ws, row, block.work_col, block.name_col):
+                if not _is_employee_row(ws, row, block.work_col, block.name_col, block.team_col):
                     result.skipped_rows += 1
                     continue
 
                 work_number = _raw(ws.cell(row, block.work_col).value)
                 full_name = _raw(ws.cell(row, block.name_col).value)
+                team = _code(ws.cell(row, block.team_col).value)
+
                 if work_number in seen_work_numbers:
                     result.duplicate_employee_rows += 1
                 seen_work_numbers.add(work_number)
 
                 employee = db.scalar(select(Employee).where(Employee.work_number == work_number))
                 if employee is None:
-                    employee = Employee(work_number=work_number, full_name=full_name)
+                    employee = Employee(work_number=work_number, full_name=full_name, team=team)
                     db.add(employee)
                     db.flush()
-                elif employee.full_name != full_name:
-                    employee.full_name = full_name
+                else:
+                    if employee.full_name != full_name:
+                        employee.full_name = full_name
+                    employee.team = team
                 seen_employee_ids.add(employee.id)
 
                 for col, day in block.day_columns.items():
@@ -233,16 +247,18 @@ def import_schedule_xlsx(db: Session, content: bytes, filename: str, year: int, 
                         work_date = date(year, month, day)
                     except ValueError:
                         continue
-                    shift_type, raw_code = _shift_type(ws.cell(row, col).value, block.day_patterns.get(col, ""))
+
+                    shift_type, raw_code = _shift_type(ws.cell(row, col).value)
                     key = (employee.id, work_date)
                     existing = db.scalar(select(ShiftEntry).where(
                         ShiftEntry.employee_id == employee.id,
                         ShiftEntry.work_date == work_date,
                     ))
                     if existing:
-                        if key in touched_shift_keys and (existing.shift_type != shift_type or existing.raw_code != raw_code):
+                        if key in touched_shift_keys and (
+                            existing.shift_type != shift_type or existing.raw_code != raw_code
+                        ):
                             result.conflicting_days += 1
-                        # Later appearances in the workbook are treated as corrections.
                         existing.shift_type = shift_type
                         existing.raw_code = raw_code
                         existing.source_file = filename
