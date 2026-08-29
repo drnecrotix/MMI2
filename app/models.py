@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -30,3 +30,19 @@ class ShiftEntry(Base):
     imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     employee: Mapped[Employee] = relationship(back_populates="shifts")
+
+
+class ImportHistory(Base):
+    __tablename__ = "import_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    month: Mapped[int] = mapped_column(Integer, index=True)
+    employees: Mapped[int] = mapped_column(Integer, default=0)
+    shifts: Mapped[int] = mapped_column(Integer, default=0)
+    schedule_blocks: Mapped[int] = mapped_column(Integer, default=0)
+    duplicate_employee_rows: Mapped[int] = mapped_column(Integer, default=0)
+    conflicting_days: Mapped[int] = mapped_column(Integer, default=0)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
