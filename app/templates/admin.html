@@ -5,43 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MMI2 Admin</title>
   <style>
-    :root { font-family:Inter,system-ui,sans-serif; color-scheme:dark; --bg:#08101d; --panel:#101a2b; --border:#263750; --text:#eef5ff; --muted:#93a5bd; --accent:#4f7cff; }
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text)} main{max-width:1200px;margin:auto;padding:28px 18px 50px}
-    a{color:#9bb4ff}.card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:20px;margin-top:18px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px} label{display:block;color:var(--muted);font-size:13px;font-weight:700;margin:10px 0 6px}
-    input,button{font:inherit} input{width:100%;border:1px solid #32445f;background:#091321;color:#fff;border-radius:12px;padding:13px}
-    button{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.preview{background:#324561;color:#fff}.confirm{background:var(--accent);color:#fff}.confirm:disabled{opacity:.45;cursor:not-allowed}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.status{margin-top:14px;color:#b9c8db}.warning{color:#ffb477}.ok{color:#91e3a1}
+    :root{font-family:Inter,system-ui,sans-serif;color-scheme:dark;--bg:#08101d;--panel:#101a2b;--border:#263750;--text:#eef5ff;--muted:#93a5bd;--accent:#4f7cff}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{max-width:1200px;margin:auto;padding:28px 18px 50px}a{color:#9bb4ff}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:20px;margin-top:18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    label{display:block;color:var(--muted);font-size:13px;font-weight:700;margin:10px 0 6px}input,button{font:inherit}input{width:100%;border:1px solid #32445f;background:#091321;color:#fff;border-radius:12px;padding:13px}
+    button{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.preview{background:#324561;color:#fff}.confirm{background:var(--accent);color:#fff}.confirm:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#17253a;color:#cbd8e9;border:1px solid #32445f}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.status{margin-top:14px;color:#b9c8db}.warning{color:#ffb477}.ok{color:#91e3a1}.period-note{margin-top:8px;font-size:13px;color:#9db0c8}
     .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0}.stat{background:#0a1423;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}.stat strong{display:block;font-size:22px}.stat small{color:var(--muted)}
-    .table-wrap{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:820px}th,td{padding:10px;border-bottom:1px solid #22334a;text-align:left;font-size:13px}th{position:sticky;top:0;background:#111d30}td.num{text-align:center}
-    .unknown{background:#281b14;border:1px solid #624126;padding:12px;border-radius:12px;margin:12px 0}.hidden{display:none}
+    .table-wrap{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:820px}th,td{padding:10px;border-bottom:1px solid #22334a;text-align:left;font-size:13px}th{position:sticky;top:0;background:#111d30}td.num{text-align:center}.unknown{background:#281b14;border:1px solid #624126;padding:12px;border-radius:12px;margin:12px 0}.hidden{display:none}.hash{font-family:ui-monospace,monospace;font-size:11px;color:#8295ae}.history-empty{color:var(--muted);padding:16px}
     @media(max-width:700px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}main{padding:18px 10px}}
   </style>
 </head>
 <body>
 <main>
   <p><a href="/">← Към графика</a></p>
-  <h1>MMI2 Admin Import</h1>
-  <p style="color:var(--muted)">Първо прегледай Excel файла. Данните се записват едва след натискане на „Потвърди импорт“.</p>
+  <h1>MMI2 Admin</h1>
+  <p style="color:var(--muted)">Прегледай файла преди импорт. Ако периодът е записан в Excel, системата ще го разпознае автоматично.</p>
 
   <section class="card">
     <label for="adminKey">Admin key</label>
     <input id="adminKey" type="password" autocomplete="off">
     <div class="grid">
-      <div><label for="year">Година</label><input id="year" type="number" min="2020" max="2100"></div>
-      <div><label for="month">Месец</label><input id="month" type="number" min="1" max="12"></div>
+      <div><label for="year">Година - по избор</label><input id="year" type="number" min="2020" max="2100" placeholder="Автоматично"></div>
+      <div><label for="month">Месец - по избор</label><input id="month" type="number" min="1" max="12" placeholder="Автоматично"></div>
     </div>
+    <div class="period-note">Остави и двете полета празни за автоматично разпознаване. Ако автоматичното разпознаване не е сигурно, системата ще поиска ръчно въвеждане.</div>
     <label for="excel">Excel график</label>
     <input id="excel" type="file" accept=".xlsx">
     <div class="actions">
       <button class="preview" onclick="previewFile()">Преглед преди импорт</button>
       <button id="confirmButton" class="confirm" onclick="confirmImport()" disabled>Потвърди импорт</button>
+      <button class="secondary" onclick="loadHistory()">История на импортите</button>
     </div>
     <div id="status" class="status">Няма избран и проверен файл.</div>
   </section>
 
   <section id="previewPanel" class="card hidden">
     <h2>Резултат от анализа</h2>
+    <div id="periodInfo" class="period-note"></div>
     <div id="summary"></div>
     <div id="unknownCodes" class="unknown hidden"></div>
     <div class="table-wrap">
@@ -51,37 +52,67 @@
       </table>
     </div>
   </section>
+
+  <section id="historyPanel" class="card hidden">
+    <h2>История на импортите</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Дата</th><th>Период</th><th>Файл</th><th>Служители</th><th>Записи</th><th>Повторения</th><th>Конфликти</th><th>SHA-256</th></tr></thead>
+        <tbody id="historyRows"></tbody>
+      </table>
+    </div>
+  </section>
 </main>
 <script>
-const now=new Date(); document.getElementById('year').value=now.getFullYear(); document.getElementById('month').value=now.getMonth()+1;
 let previewSignature=null;
+const yearInput=document.getElementById('year');
+const monthInput=document.getElementById('month');
 
 document.getElementById('excel').addEventListener('change', invalidatePreview);
-document.getElementById('year').addEventListener('change', invalidatePreview);
-document.getElementById('month').addEventListener('change', invalidatePreview);
-function invalidatePreview(){previewSignature=null;document.getElementById('confirmButton').disabled=true;document.getElementById('status').textContent='Файлът трябва да бъде прегледан отново преди импорт.';}
-function currentSignature(){const f=document.getElementById('excel').files[0];return f?`${f.name}:${f.size}:${f.lastModified}:${document.getElementById('year').value}:${document.getElementById('month').value}`:null;}
-function formData(){const f=document.getElementById('excel').files[0];if(!f)throw new Error('Избери .xlsx файл.');const fd=new FormData();fd.append('year',document.getElementById('year').value);fd.append('month',document.getElementById('month').value);fd.append('file',f);return fd;}
+yearInput.addEventListener('change', invalidatePreview);
+monthInput.addEventListener('change', invalidatePreview);
+
+function invalidatePreview(){previewSignature=null;document.getElementById('confirmButton').disabled=true;document.getElementById('status').className='status';document.getElementById('status').textContent='Файлът трябва да бъде прегледан отново преди импорт.';}
+function currentSignature(){const f=document.getElementById('excel').files[0];return f?`${f.name}:${f.size}:${f.lastModified}:${yearInput.value}:${monthInput.value}`:null;}
+function formData(){const f=document.getElementById('excel').files[0];if(!f)throw new Error('Избери .xlsx файл.');const fd=new FormData();if(yearInput.value)fd.append('year',yearInput.value);if(monthInput.value)fd.append('month',monthInput.value);fd.append('file',f);return fd;}
+function adminHeaders(){return {'X-Admin-Key':document.getElementById('adminKey').value};}
+
 async function previewFile(){
-  const status=document.getElementById('status'); status.textContent='Анализиране...'; document.getElementById('confirmButton').disabled=true;
+  const status=document.getElementById('status');status.textContent='Анализиране...';document.getElementById('confirmButton').disabled=true;
   try{
-    const response=await fetch('/api/v1/admin/preview',{method:'POST',headers:{'X-Admin-Key':document.getElementById('adminKey').value},body:formData()});
-    const data=await response.json(); if(!response.ok)throw new Error(data.detail||'Грешка при анализа.');
-    previewSignature=currentSignature(); document.getElementById('confirmButton').disabled=false; renderPreview(data);
-    status.className='status ok'; status.textContent=`Прегледът е готов - ${data.employees_count} служители. Нищо не е записано в базата.`;
+    const response=await fetch('/api/v1/admin/preview',{method:'POST',headers:adminHeaders(),body:formData()});
+    const data=await response.json();if(!response.ok)throw new Error(data.detail||'Грешка при анализа.');
+    if(!yearInput.value&&!monthInput.value){yearInput.value=data.year;monthInput.value=data.month;}
+    previewSignature=currentSignature();document.getElementById('confirmButton').disabled=false;renderPreview(data);
+    const auto=data.period_detection?.source==='auto'?' Периодът е разпознат автоматично.':'';
+    status.className='status ok';status.textContent=`Прегледът е готов - ${data.employees_count} служители.${auto} Нищо не е записано в базата.`;
   }catch(e){status.className='status warning';status.textContent=e.message;}
 }
+
 function renderPreview(data){
   document.getElementById('previewPanel').classList.remove('hidden');
-  const t=data.totals||{}; document.getElementById('summary').innerHTML=`<div class="stats"><div class="stat"><strong>${data.employees_count}</strong><small>Служители</small></div><div class="stat"><strong>${t.day||0}</strong><small>Дневни</small></div><div class="stat"><strong>${t.night||0}</strong><small>Нощни</small></div><div class="stat"><strong>${data.duplicate_employee_rows}</strong><small>Повторни редове</small></div><div class="stat"><strong>${data.conflicting_days}</strong><small>Конфликтни дни</small></div></div>`;
-  const unknown=Object.entries(data.unknown_codes||{});const u=document.getElementById('unknownCodes'); if(unknown.length){u.classList.remove('hidden');u.innerHTML='<strong>Непознати кодове:</strong> '+unknown.map(([k,v])=>`${escapeHtml(k)} (${v})`).join(', ');}else{u.classList.add('hidden');u.innerHTML='';}
+  const p=data.period_detection||{};document.getElementById('periodInfo').textContent=`Период: ${String(data.month).padStart(2,'0')}.${data.year} | източник: ${p.source||'-'} | увереност: ${p.confidence||'-'}${p.evidence?' | '+p.evidence:''}`;
+  const t=data.totals||{};document.getElementById('summary').innerHTML=`<div class="stats"><div class="stat"><strong>${data.employees_count}</strong><small>Служители</small></div><div class="stat"><strong>${t.day||0}</strong><small>Дневни</small></div><div class="stat"><strong>${t.night||0}</strong><small>Нощни</small></div><div class="stat"><strong>${data.duplicate_employee_rows}</strong><small>Повторни редове</small></div><div class="stat"><strong>${data.conflicting_days}</strong><small>Конфликтни дни</small></div></div>`;
+  const unknown=Object.entries(data.unknown_codes||{});const u=document.getElementById('unknownCodes');if(unknown.length){u.classList.remove('hidden');u.innerHTML='<strong>Непознати кодове:</strong> '+unknown.map(([k,v])=>`${escapeHtml(k)} (${v})`).join(', ');}else{u.classList.add('hidden');u.innerHTML='';}
   document.getElementById('employees').innerHTML=data.employees.map(e=>`<tr><td>${escapeHtml(e.work_number)}</td><td>${escapeHtml(e.full_name)}</td><td>${escapeHtml(e.team)}</td><td class="num">${e.day}</td><td class="num">${e.night}</td><td class="num">${e.leave}</td><td class="num">${e.sick_leave}</td><td class="num">${e.rest}</td><td class="num">${e.unknown}</td></tr>`).join('');
 }
+
 async function confirmImport(){
-  const status=document.getElementById('status'); if(previewSignature!==currentSignature()){invalidatePreview();return;}
-  if(!confirm('Да се запише ли прегледаният график в базата?'))return;
-  status.textContent='Импортиране...'; document.getElementById('confirmButton').disabled=true;
-  try{const response=await fetch('/api/v1/admin/import',{method:'POST',headers:{'X-Admin-Key':document.getElementById('adminKey').value},body:formData()});const data=await response.json();if(!response.ok)throw new Error(data.detail||'Грешка при импорта.');status.className='status ok';status.textContent=`Импортът е успешен - ${data.employees} служители, ${data.shifts} календарни записа.`;previewSignature=null;}catch(e){status.className='status warning';status.textContent=e.message;document.getElementById('confirmButton').disabled=false;}
+  const status=document.getElementById('status');if(previewSignature!==currentSignature()){invalidatePreview();return;}if(!confirm('Да се запише ли прегледаният график в базата?'))return;
+  status.textContent='Импортиране...';document.getElementById('confirmButton').disabled=true;
+  try{
+    const response=await fetch('/api/v1/admin/import',{method:'POST',headers:adminHeaders(),body:formData()});const data=await response.json();if(!response.ok)throw new Error(data.detail||'Грешка при импорта.');
+    status.className='status ok';status.textContent=`Импорт #${data.import_id} е успешен - ${data.employees} служители, ${data.shifts} календарни записа за ${String(data.month).padStart(2,'0')}.${data.year}.`;previewSignature=null;await loadHistory();
+  }catch(e){status.className='status warning';status.textContent=e.message;document.getElementById('confirmButton').disabled=false;}
+}
+
+async function loadHistory(){
+  const status=document.getElementById('status');
+  try{
+    const response=await fetch('/api/v1/admin/imports',{headers:adminHeaders()});const data=await response.json();if(!response.ok)throw new Error(data.detail||'Историята не може да се зареди.');
+    const panel=document.getElementById('historyPanel');panel.classList.remove('hidden');const rows=data.imports||[];
+    document.getElementById('historyRows').innerHTML=rows.length?rows.map(r=>`<tr><td>${new Date(r.imported_at).toLocaleString('bg-BG')}</td><td>${String(r.month).padStart(2,'0')}.${r.year}</td><td>${escapeHtml(r.filename)}</td><td class="num">${r.employees}</td><td class="num">${r.shifts}</td><td class="num">${r.duplicate_employee_rows}</td><td class="num">${r.conflicting_days}</td><td class="hash" title="${r.content_hash}">${r.content_hash.slice(0,12)}…</td></tr>`).join(''):`<tr><td colspan="8" class="history-empty">Все още няма записани импорти.</td></tr>`;
+  }catch(e){status.className='status warning';status.textContent=e.message;}
 }
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 </script>
