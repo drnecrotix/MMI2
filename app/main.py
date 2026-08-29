@@ -17,12 +17,13 @@ from app.security import create_access_token, decode_access_token
 from app.services.excel_import import import_schedule_xlsx
 from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
+from app.services.schedule_compare import compare_preview_to_database
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.5.0",
+    version="0.6.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -141,6 +142,7 @@ async def preview_schedule(
     month: int | None = Form(default=None),
     file: UploadFile = File(...),
     x_admin_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
     require_admin_key(x_admin_key)
     content = await file.read()
@@ -151,6 +153,7 @@ async def preview_schedule(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    comparison = compare_preview_to_database(db, result, resolved_year, resolved_month)
     return {
         "status": "preview",
         "filename": filename,
@@ -163,6 +166,7 @@ async def preview_schedule(
         "conflicting_days": result.conflicting_days,
         "unknown_codes": result.unknown_codes,
         "totals": result.totals,
+        "comparison": comparison,
         "employees": result.employees,
     }
 
