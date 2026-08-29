@@ -47,7 +47,6 @@ def _text_candidates(text: str) -> list[tuple[int, int]]:
     if not normalized:
         return out
 
-    # 07/2026, 7.2026, 2026-07 and similar compact period forms.
     for match in re.finditer(r"(?<!\d)(0?[1-9]|1[0-2])[./-](20\d{2})(?!\d)", normalized):
         out.append((int(match.group(2)), int(match.group(1))))
     for match in re.finditer(r"(?<!\d)(20\d{2})[./-](0?[1-9]|1[0-2])(?!\d)", normalized):
@@ -101,16 +100,14 @@ def detect_schedule_period(content: bytes, filename: str = "") -> PeriodDetectio
     ranked = scores.most_common(2)
     best_period, best_score = ranked[0]
     second_score = ranked[1][1] if len(ranked) > 1 else 0
-
-    # Require a useful signal and avoid silently choosing between equally plausible periods.
     if best_score < 2 or (second_score and best_score == second_score):
         return None
 
     confidence = "high" if best_score >= 5 and best_score >= second_score + 2 else "medium"
-    why = ", ".join(dict.fromkeys(evidence.get(best_period, []))[:3])
+    unique_evidence = list(dict.fromkeys(evidence.get(best_period, [])))[:3]
     return PeriodDetection(
         year=best_period[0],
         month=best_period[1],
         confidence=confidence,
-        evidence=why or "Excel metadata",
+        evidence=", ".join(unique_evidence) or "Excel metadata",
     )
