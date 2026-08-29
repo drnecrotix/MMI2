@@ -13,6 +13,7 @@
     .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.status{margin-top:14px;color:#b9c8db}.warning{color:#ffb477}.ok{color:#91e3a1}.period-note{margin-top:8px;font-size:13px;color:#9db0c8}
     .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0}.stat{background:#0a1423;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}.stat strong{display:block;font-size:22px}.stat small{color:var(--muted)}
     .table-wrap{overflow:auto;max-height:60vh;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;min-width:820px}th,td{padding:10px;border-bottom:1px solid #22334a;text-align:left;font-size:13px}th{position:sticky;top:0;background:#111d30}td.num{text-align:center}.unknown{background:#281b14;border:1px solid #624126;padding:12px;border-radius:12px;margin:12px 0}.hidden{display:none}.hash{font-family:ui-monospace,monospace;font-size:11px;color:#8295ae}.history-empty{color:var(--muted);padding:16px}
+    .changes{margin:16px 0;padding:16px;border:1px solid #365071;border-radius:14px;background:#0b1728}.changes h3{margin:0 0 8px}.changes-note{color:#9fb2ca;font-size:13px;margin-bottom:12px}.old{color:#ffadad}.new{color:#9de3a7}.arrow{color:#7287a2;padding:0 6px}.team-change{display:inline-block;padding:4px 8px;border-radius:999px;background:#172b44;border:1px solid #34577d;font-size:12px;margin:3px}
     @media(max-width:700px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}main{padding:18px 10px}}
   </style>
 </head>
@@ -45,6 +46,19 @@
     <div id="periodInfo" class="period-note"></div>
     <div id="summary"></div>
     <div id="unknownCodes" class="unknown hidden"></div>
+
+    <div id="changesPanel" class="changes hidden">
+      <h3>Промени спрямо записания график</h3>
+      <div id="changesSummary" class="changes-note"></div>
+      <div id="teamChanges"></div>
+      <div id="changesTableWrap" class="table-wrap hidden">
+        <table>
+          <thead><tr><th>Дата</th><th>Раб. №</th><th>Име</th><th>Преди</th><th>След импорт</th></tr></thead>
+          <tbody id="changeRows"></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="table-wrap">
       <table>
         <thead><tr><th>Раб. №</th><th>Име</th><th>Смяна</th><th>Дневни</th><th>Нощни</th><th>Отпуск</th><th>Болнични</th><th>Почивки</th><th>Unknown</th></tr></thead>
@@ -67,6 +81,7 @@
 let previewSignature=null;
 const yearInput=document.getElementById('year');
 const monthInput=document.getElementById('month');
+const shiftLabels={day:'Дневна',night:'Нощна',leave:'Отпуск',sick_leave:'Болничен',rest:'Почивка',unknown:'Unknown'};
 
 document.getElementById('excel').addEventListener('change', invalidatePreview);
 yearInput.addEventListener('change', invalidatePreview);
@@ -94,8 +109,23 @@ function renderPreview(data){
   const p=data.period_detection||{};document.getElementById('periodInfo').textContent=`Период: ${String(data.month).padStart(2,'0')}.${data.year} | източник: ${p.source||'-'} | увереност: ${p.confidence||'-'}${p.evidence?' | '+p.evidence:''}`;
   const t=data.totals||{};document.getElementById('summary').innerHTML=`<div class="stats"><div class="stat"><strong>${data.employees_count}</strong><small>Служители</small></div><div class="stat"><strong>${t.day||0}</strong><small>Дневни</small></div><div class="stat"><strong>${t.night||0}</strong><small>Нощни</small></div><div class="stat"><strong>${data.duplicate_employee_rows}</strong><small>Повторни редове</small></div><div class="stat"><strong>${data.conflicting_days}</strong><small>Конфликтни дни</small></div></div>`;
   const unknown=Object.entries(data.unknown_codes||{});const u=document.getElementById('unknownCodes');if(unknown.length){u.classList.remove('hidden');u.innerHTML='<strong>Непознати кодове:</strong> '+unknown.map(([k,v])=>`${escapeHtml(k)} (${v})`).join(', ');}else{u.classList.add('hidden');u.innerHTML='';}
+  renderComparison(data.comparison||{});
   document.getElementById('employees').innerHTML=data.employees.map(e=>`<tr><td>${escapeHtml(e.work_number)}</td><td>${escapeHtml(e.full_name)}</td><td>${escapeHtml(e.team)}</td><td class="num">${e.day}</td><td class="num">${e.night}</td><td class="num">${e.leave}</td><td class="num">${e.sick_leave}</td><td class="num">${e.rest}</td><td class="num">${e.unknown}</td></tr>`).join('');
 }
+
+function renderComparison(c){
+  const panel=document.getElementById('changesPanel');panel.classList.remove('hidden');
+  const firstImport=!c.database_has_period;
+  const trunc=c.details_truncated?` Показани са първите ${c.detail_limit} детайла.`:'';
+  document.getElementById('changesSummary').textContent=firstImport
+    ?`За този период няма записан график. Импортът ще добави ${c.new_days||0} календарни записа за ${c.new_employees||0} нови служители.${trunc}`
+    :`Ще се променят ${c.changed_days||0} дни, ще се добавят ${c.new_days||0} нови дни и ${c.team_changes?.length||0} промени на смяна. ${c.unchanged_days||0} дни остават без промяна.${trunc}`;
+  const teams=c.team_changes||[];document.getElementById('teamChanges').innerHTML=teams.length?'<div class="changes-note"><strong>Промени на смяна:</strong> '+teams.map(x=>`<span class="team-change">${escapeHtml(x.full_name)}: ${escapeHtml(x.old_team||'-')} → ${escapeHtml(x.new_team||'-')}</span>`).join('')+'</div>':'';
+  const details=c.details||[];const wrap=document.getElementById('changesTableWrap');
+  if(details.length){wrap.classList.remove('hidden');document.getElementById('changeRows').innerHTML=details.map(x=>`<tr><td>${formatDate(x.work_date)}</td><td>${escapeHtml(x.work_number)}</td><td>${escapeHtml(x.full_name)}</td><td class="old">${formatShift(x.old_type,x.old_code)}</td><td class="new">${formatShift(x.new_type,x.new_code)}</td></tr>`).join('');}else{wrap.classList.add('hidden');document.getElementById('changeRows').innerHTML='';}
+}
+function formatShift(type,code){if(!type)return 'Няма запис';const label=shiftLabels[type]||type;return `${escapeHtml(label)}${code?` (${escapeHtml(code)})`:''}`;}
+function formatDate(value){const [y,m,d]=String(value).split('-');return `${d}.${m}.${y}`;}
 
 async function confirmImport(){
   const status=document.getElementById('status');if(previewSignature!==currentSignature()){invalidatePreview();return;}if(!confirm('Да се запише ли прегледаният график в базата?'))return;
