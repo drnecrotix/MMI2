@@ -46,3 +46,15 @@ class ImportHistory(Base):
     duplicate_employee_rows: Mapped[int] = mapped_column(Integer, default=0)
     conflicting_days: Mapped[int] = mapped_column(Integer, default=0)
     imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ManualEditHistory(Base):
+    __tablename__ = "manual_edit_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id", ondelete="CASCADE"), index=True)
+    work_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    field_name: Mapped[str] = mapped_column(String(64), index=True)
+    old_value: Mapped[str] = mapped_column(String(255), default="")
+    new_value: Mapped[str] = mapped_column(String(255), default="")
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

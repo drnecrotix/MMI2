@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MMI2 - Служители</title>
+  <style>
+    :root{font-family:Inter,system-ui,sans-serif;color-scheme:dark;--bg:#08101d;--panel:#101a2b;--border:#263750;--text:#eef5ff;--muted:#93a5bd;--accent:#4f7cff}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{max-width:1200px;margin:auto;padding:24px 16px 48px}a{color:#9bb4ff}.card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;margin-top:16px}input,select,button{font:inherit}input,select{background:#091321;color:#fff;border:1px solid #32445f;border-radius:10px;padding:10px}button{border:0;border-radius:10px;padding:10px 13px;background:var(--accent);color:#fff;font-weight:800;cursor:pointer}.secondary{background:#273a55}.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}.muted{color:var(--muted)}table{width:100%;border-collapse:collapse;min-width:720px}th,td{padding:9px;border-bottom:1px solid #22334a;text-align:left;font-size:13px}th{background:#111d30;position:sticky;top:0}.wrap{overflow:auto;max-height:58vh}.hidden{display:none}.status{margin-top:10px;color:#b8c8db}.days{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}.day{border:1px solid var(--border);border-radius:12px;padding:9px;background:#0a1423}.day strong{display:block;margin-bottom:7px}.day input{width:100%}@media(max-width:700px){.days{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body><main>
+  <p><a href="/admin">← Към импорт администрацията</a></p>
+  <h1>Служители и ръчни корекции</h1>
+  <p class="muted">Търси по работен номер или име. Всяка промяна се записва в audit историята.</p>
+
+  <section class="card">
+    <div class="row"><input id="key" type="password" placeholder="Admin key"><input id="q" placeholder="Работен номер или име"><button onclick="searchEmployees()">Търси</button></div>
+    <div id="status" class="status"></div>
+    <div class="wrap"><table><thead><tr><th>Раб. №</th><th>Име</th><th>Смяна</th><th></th></tr></thead><tbody id="results"></tbody></table></div>
+  </section>
+
+  <section id="editor" class="card hidden">
+    <h2 id="title"></h2>
+    <div class="row"><input id="name"><select id="team"><option>А</option><option>Б</option><option>В</option><option>Г</option></select><button onclick="saveEmployee()">Запази служител</button></div>
+    <div class="row" style="margin-top:12px"><input id="year" type="number" min="2020" max="2100"><input id="month" type="number" min="1" max="12"><button class="secondary" onclick="loadSchedule()">Зареди месец</button><button class="secondary" onclick="loadEdits()">Audit история</button></div>
+    <p class="muted">Кодове: 1 - дневна, 2 - нощна, О/0 - отпуск, Б - болничен, празно - почивка. Друг код остава unknown.</p>
+    <div id="days" class="days"></div>
+  </section>
+
+  <section id="audit" class="card hidden"><h2>Audit история</h2><div class="wrap"><table><thead><tr><th>Дата</th><th>Поле</th><th>Работен ден</th><th>Преди</th><th>След</th></tr></thead><tbody id="auditRows"></tbody></table></div></section>
+
+<script>
+let selected=null;const now=new Date();year.value=now.getFullYear();month.value=now.getMonth()+1;
+const headers=()=>({'X-Admin-Key':key.value,'Content-Type':'application/json'});const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function searchEmployees(){const r=await fetch('/api/v1/admin/employees?q='+encodeURIComponent(q.value),{headers:{'X-Admin-Key':key.value}}),d=await r.json();if(!r.ok){status.textContent=d.detail||'Грешка';return}results.innerHTML=d.employees.map(e=>`<tr><td>${esc(e.work_number)}</td><td>${esc(e.full_name)}</td><td>${esc(e.team||'-')}</td><td><button onclick='selectEmployee(${JSON.stringify(e)})'>Отвори</button></td></tr>`).join('');}
+function selectEmployee(e){selected=e;editor.classList.remove('hidden');title.textContent=`${e.full_name} - ${e.work_number}`;name.value=e.full_name;team.value=e.team||'А';loadSchedule();}
+async function saveEmployee(){if(!selected)return;const r=await fetch(`/api/v1/admin/employees/${selected.id}`,{method:'PATCH',headers:headers(),body:JSON.stringify({full_name:name.value,team:team.value})}),d=await r.json();status.textContent=r.ok?`Запазено. Промени: ${d.changes}`:(d.detail||'Грешка');if(r.ok){selected=d.employee;title.textContent=`${selected.full_name} - ${selected.work_number}`;}}
+async function loadSchedule(){if(!selected)return;const r=await fetch(`/api/v1/admin/employees/${selected.id}/schedule/${year.value}/${month.value}`,{headers:{'X-Admin-Key':key.value}}),d=await r.json();if(!r.ok){status.textContent=d.detail||'Грешка';return}const map=Object.fromEntries(d.shifts.map(s=>[Number(s.work_date.slice(-2)),s.raw_code]));const count=new Date(Number(year.value),Number(month.value),0).getDate();days.innerHTML=Array.from({length:count},(_,i)=>{const day=i+1;return `<div class="day"><strong>${day}</strong><input id="code-${day}" value="${esc(map[day]||'')}" placeholder="почивка"><button style="width:100%;margin-top:7px" onclick="saveDay(${day})">Запази</button></div>`}).join('');}
+async function saveDay(day){const dt=`${year.value}-${String(month.value).padStart(2,'0')}-${String(day).padStart(2,'0')}`;const raw=document.getElementById('code-'+day).value;const r=await fetch(`/api/v1/admin/employees/${selected.id}/schedule/${dt}`,{method:'PUT',headers:headers(),body:JSON.stringify({raw_code:raw})}),d=await r.json();status.textContent=r.ok?`${dt}: ${d.status}`:(d.detail||'Грешка');}
+async function loadEdits(){if(!selected)return;const r=await fetch(`/api/v1/admin/employees/${selected.id}/edits`,{headers:{'X-Admin-Key':key.value}}),d=await r.json();if(!r.ok){status.textContent=d.detail||'Грешка';return}audit.classList.remove('hidden');auditRows.innerHTML=d.edits.map(x=>`<tr><td>${new Date(x.changed_at).toLocaleString('bg-BG')}</td><td>${esc(x.field_name)}</td><td>${esc(x.work_date||'-')}</td><td>${esc(x.old_value||'-')}</td><td>${esc(x.new_value||'-')}</td></tr>`).join('');}
+</script></main></body></html>
