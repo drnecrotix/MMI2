@@ -22,6 +22,7 @@ class EmployeePreview:
 @dataclass
 class PreviewResult:
     employees: list[dict]
+    day_entries: list[dict]
     schedule_blocks: int
     duplicate_employee_rows: int
     conflicting_days: int
@@ -82,7 +83,6 @@ def preview_schedule_xlsx(content: bytes, filename: str, year: int, month: int) 
                         conflicting_days += 1
                     seen_days[key] = current
 
-    # Build totals from the final value for every employee/date, mirroring import overwrite behavior.
     for (work_number, _), (shift_type, raw_code) in seen_days.items():
         employee = employees[work_number]
         employee.totals[shift_type] += 1
@@ -108,8 +108,23 @@ def preview_schedule_xlsx(content: bytes, filename: str, year: int, month: int) 
         for employee in sorted(employees.values(), key=lambda item: (item.team, item.full_name, item.work_number))
     ]
 
+    day_entries = [
+        {
+            "work_number": work_number,
+            "full_name": employees[work_number].full_name,
+            "team": employees[work_number].team,
+            "work_date": work_date,
+            "shift_type": shift_type,
+            "raw_code": raw_code,
+        }
+        for (work_number, work_date), (shift_type, raw_code) in sorted(
+            seen_days.items(), key=lambda item: (item[0][0], item[0][1])
+        )
+    ]
+
     return PreviewResult(
         employees=employee_rows,
+        day_entries=day_entries,
         schedule_blocks=schedule_blocks,
         duplicate_employee_rows=duplicate_employee_rows,
         conflicting_days=conflicting_days,
