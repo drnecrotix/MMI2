@@ -2,19 +2,26 @@ from calendar import monthrange
 from datetime import date
 from hashlib import sha256
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import Base, engine, get_db
-from app.models import Employee, ImportHistory, ShiftEntry
-from app.schemas import LoginRequest, MonthlyScheduleOut, ShiftOut, TokenResponse
+from app.models import Employee, ImportHistory, ManualEditHistory, ShiftEntry
+from app.schemas import (
+    AdminEmployeeUpdate,
+    AdminShiftUpdate,
+    LoginRequest,
+    MonthlyScheduleOut,
+    ShiftOut,
+    TokenResponse,
+)
 from app.security import create_access_token, decode_access_token
-from app.services.excel_import import import_schedule_xlsx
+from app.services.excel_import import _shift_type, import_schedule_xlsx
 from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
 from app.services.schedule_compare import compare_preview_to_database
@@ -23,11 +30,12 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.6.0",
+    version="0.7.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
 bearer = HTTPBearer(auto_error=False)
+TEAM_CODES = {"А", "Б", "В", "Г"}
 
 
 def current_employee(
@@ -72,6 +80,13 @@ def resolve_period(content: bytes, filename: str, year: int | None, month: int |
     }
 
 
+def get_admin_employee(db: Session, employee_id: int) -> Employee:
+    employee = db.get(Employee, employee_id)
+    if not employee:
+        raise HTTPException(status_code=404, detail="Служителят не е намерен.")
+    return employee
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": settings.app_name}
@@ -85,6 +100,11 @@ def home(request: Request):
 @app.get("/admin", response_class=HTMLResponse)
 def admin_page(request: Request):
     return templates.TemplateResponse(request=request, name="admin.html", context={"app_name": settings.app_name})
+
+
+@app.get("/admin/employees", response_class=HTMLResponse)
+def admin_employees_page(request: Request):
+    return templates.TemplateResponse(request=request, name="admin_employees.html", context={"app_name": settings.app_name})
 
 
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
@@ -239,6 +259,179 @@ def import_history(
                 "conflicting_days": row.conflicting_days,
                 "content_hash": row.content_hash,
                 "imported_at": row.imported_at.isoformat(),
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.get("/api/v1/admin/employees")
+def admin_employee_search(
+    q: str = Query(default="", max_length=120),
+    limit: int = Query(default=50, ge=1, le=200),
+    x_admin_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_key(x_admin_key)
+    statement = select(Employee).order_by(Employee.full_name, Employee.work_number).limit(limit)
+    term = q.strip()
+    if term:
+        pattern = f"%{term}%"
+        statement = (
+            select(Employee)
+            .where(or_(Employee.work_number.ilike(pattern), Employee.full_name.ilike(pattern)))
+            .order_by(Employee.full_name, Employee.work_number)
+            .limit(limit)
+        )
+    employees = db.scalars(statement).all()
+    return {
+        "employees": [
+            {"id": e.id, "work_number": e.work_number, "full_name": e.full_name, "team": e.team}
+            for e in employees
+        ]
+    }
+
+
+@app.get("/api/v1/admin/employees/{employee_id}/schedule/{year}/{month}")
+def admin_employee_schedule(
+    employee_id: int,
+    year: int,
+    month: int,
+    x_admin_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_key(x_admin_key)
+    if not 2020 <= year <= 2100 or not 1 <= month <= 12:
+        raise HTTPException(status_code=400, detail="Невалиден период.")
+    employee = get_admin_employee(db, employee_id)
+    first = date(year, month, 1)
+    last = date(year, month, monthrange(year, month)[1])
+    entries = db.scalars(
+        select(ShiftEntry)
+        .where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last)
+        .order_by(ShiftEntry.work_date)
+    ).all()
+    return {
+        "employee": {"id": employee.id, "work_number": employee.work_number, "full_name": employee.full_name, "team": employee.team},
+        "year": year,
+        "month": month,
+        "shifts": [
+            {"work_date": e.work_date.isoformat(), "shift_type": e.shift_type, "raw_code": e.raw_code, "source_file": e.source_file}
+            for e in entries
+        ],
+    }
+
+
+@app.patch("/api/v1/admin/employees/{employee_id}")
+def admin_update_employee(
+    employee_id: int,
+    payload: AdminEmployeeUpdate,
+    x_admin_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_key(x_admin_key)
+    employee = get_admin_employee(db, employee_id)
+    changes = []
+
+    if payload.full_name is not None:
+        new_name = payload.full_name.strip()
+        if len(new_name) < 3:
+            raise HTTPException(status_code=400, detail="Името е твърде кратко.")
+        if new_name != employee.full_name:
+            changes.append(("full_name", employee.full_name, new_name))
+            employee.full_name = new_name
+
+    if payload.team is not None:
+        new_team = payload.team.strip().upper()
+        if new_team not in TEAM_CODES:
+            raise HTTPException(status_code=400, detail="Смяната трябва да е А, Б, В или Г.")
+        if new_team != employee.team:
+            changes.append(("team", employee.team or "", new_team))
+            employee.team = new_team
+
+    for field_name, old_value, new_value in changes:
+        db.add(ManualEditHistory(
+            employee_id=employee.id,
+            field_name=field_name,
+            old_value=old_value,
+            new_value=new_value,
+        ))
+    db.commit()
+    return {
+        "status": "updated" if changes else "unchanged",
+        "employee": {"id": employee.id, "work_number": employee.work_number, "full_name": employee.full_name, "team": employee.team},
+        "changes": len(changes),
+    }
+
+
+@app.put("/api/v1/admin/employees/{employee_id}/schedule/{work_date}")
+def admin_update_shift(
+    employee_id: int,
+    work_date: date,
+    payload: AdminShiftUpdate,
+    x_admin_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_key(x_admin_key)
+    employee = get_admin_employee(db, employee_id)
+    shift_type, raw_code = _shift_type(payload.raw_code)
+    entry = db.scalar(select(ShiftEntry).where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date == work_date))
+
+    if entry:
+        old_value = f"{entry.shift_type}|{entry.raw_code}"
+        new_value = f"{shift_type}|{raw_code}"
+        if old_value == new_value:
+            return {"status": "unchanged", "work_date": work_date, "shift_type": shift_type, "raw_code": raw_code}
+        entry.shift_type = shift_type
+        entry.raw_code = raw_code
+        entry.source_file = "manual-admin"
+    else:
+        old_value = ""
+        new_value = f"{shift_type}|{raw_code}"
+        entry = ShiftEntry(
+            employee_id=employee.id,
+            work_date=work_date,
+            shift_type=shift_type,
+            raw_code=raw_code,
+            source_file="manual-admin",
+        )
+        db.add(entry)
+
+    db.add(ManualEditHistory(
+        employee_id=employee.id,
+        work_date=work_date,
+        field_name="shift",
+        old_value=old_value,
+        new_value=new_value,
+    ))
+    db.commit()
+    return {"status": "updated", "work_date": work_date, "shift_type": shift_type, "raw_code": raw_code}
+
+
+@app.get("/api/v1/admin/employees/{employee_id}/edits")
+def admin_employee_edits(
+    employee_id: int,
+    limit: int = Query(default=100, ge=1, le=500),
+    x_admin_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_key(x_admin_key)
+    employee = get_admin_employee(db, employee_id)
+    rows = db.scalars(
+        select(ManualEditHistory)
+        .where(ManualEditHistory.employee_id == employee.id)
+        .order_by(ManualEditHistory.changed_at.desc(), ManualEditHistory.id.desc())
+        .limit(limit)
+    ).all()
+    return {
+        "edits": [
+            {
+                "id": row.id,
+                "work_date": row.work_date.isoformat() if row.work_date else None,
+                "field_name": row.field_name,
+                "old_value": row.old_value,
+                "new_value": row.new_value,
+                "changed_at": row.changed_at.isoformat(),
             }
             for row in rows
         ]
