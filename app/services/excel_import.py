@@ -15,8 +15,8 @@ from app.models import Employee, ShiftEntry
 
 
 WORK_NUMBER_HEADERS = {
-    "раб. №", "раб №", "работен номер", "работен №", "работен no",
-    "табелен номер", "таб. номер", "employee number", "work number", "id",
+    "раб. №", "раб №", "раб. no", "раб no", "работен номер", "работен №", "работен no",
+    "табелен номер", "таб. номер", "таб. no", "employee number", "work number", "id",
 }
 NAME_HEADERS = {
     "име, фамилия", "име фамилия", "име", "име на служителя", "служител",
@@ -150,10 +150,6 @@ def _discover_blocks(ws, year: int, month: int) -> list[ScheduleBlock]:
             continue
         days_row, day_columns = days_info
 
-        # In the provided MMI2 workbook the employee shift (А/Б/В/Г) is stored
-        # in the column immediately before the first date column. We use the
-        # employee's own value rather than the block heading, because a block can
-        # contain employees assigned to another permanent shift.
         first_day_col = min(day_columns)
         team_col = first_day_col - 1
 
@@ -177,16 +173,6 @@ def _discover_blocks(ws, year: int, month: int) -> list[ScheduleBlock]:
 
 
 def _shift_type(value: object) -> tuple[str, str]:
-    """Map only the confirmed MMI2 legend supplied by the user.
-
-    О or 0 = leave
-    Б = sick leave
-    1 = day shift
-    2 = night shift
-    empty = scheduled rest
-
-    Any other value is preserved as unknown instead of being guessed.
-    """
     raw_code = _raw(value)
     code = _code(value)
 
