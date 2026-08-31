@@ -37,7 +37,7 @@ from app.services.schedule_fallback import generate_2x2_fallback
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.9.0",
+    version="0.10.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -375,7 +375,13 @@ def admin_update_employee(
             changes.append(("team", employee.team or "", new_team))
             employee.team = new_team
     for field_name, old_value, new_value in changes:
-        db.add(ManualEditHistory(employee_id=employee.id, field_name=field_name, old_value=old_value, new_value=new_value))
+        db.add(ManualEditHistory(
+            employee_id=employee.id,
+            field_name=field_name,
+            old_value=old_value,
+            new_value=new_value,
+            changed_by=_admin,
+        ))
     db.commit()
     return {
         "status": "updated" if changes else "unchanged",
@@ -408,7 +414,14 @@ def admin_update_shift(
         new_value = f"{shift_type}|{raw_code}"
         entry = ShiftEntry(employee_id=employee.id, work_date=work_date, shift_type=shift_type, raw_code=raw_code, source_file="manual-admin")
         db.add(entry)
-    db.add(ManualEditHistory(employee_id=employee.id, work_date=work_date, field_name="shift", old_value=old_value, new_value=new_value))
+    db.add(ManualEditHistory(
+        employee_id=employee.id,
+        work_date=work_date,
+        field_name="shift",
+        old_value=old_value,
+        new_value=new_value,
+        changed_by=_admin,
+    ))
     db.commit()
     return {"status": "updated", "work_date": work_date, "shift_type": shift_type, "raw_code": raw_code}
 
@@ -434,6 +447,7 @@ def admin_employee_edits(
             "field_name": row.field_name,
             "old_value": row.old_value,
             "new_value": row.new_value,
+            "changed_by": row.changed_by,
             "changed_at": row.changed_at.isoformat(),
         } for row in rows
     ]}
