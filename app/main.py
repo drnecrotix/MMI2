@@ -474,6 +474,7 @@ async def import_schedule(
     return {
         "status": "imported",
         "import_id": history.id,
+        "imported_by": history.imported_by,
         "employees": result.employees,
         "shifts": result.shifts,
         "skipped_rows": result.skipped_rows,
@@ -508,6 +509,7 @@ def import_history(
                 "duplicate_employee_rows": row.duplicate_employee_rows,
                 "conflicting_days": row.conflicting_days,
                 "content_hash": row.content_hash,
+                "imported_by": row.imported_by,
                 "imported_at": row.imported_at.isoformat(),
             }
             for row in rows
