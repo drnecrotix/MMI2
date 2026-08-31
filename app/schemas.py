@@ -14,6 +14,17 @@ class TokenResponse(BaseModel):
     team: str | None = None
 
 
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    username: str
+
+
 class ShiftOut(BaseModel):
     work_date: date
     shift_type: str
