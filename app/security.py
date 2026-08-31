@@ -39,8 +39,8 @@ def decode_access_token(token: str) -> str | None:
     return _decode(token, "employee")
 
 
-def create_admin_token(username: str) -> str:
-    return _encode(username, "admin", settings.admin_token_minutes)
+def create_admin_token(email: str) -> str:
+    return _encode(email, "admin", settings.admin_token_minutes)
 
 
 def decode_admin_token(token: str) -> str | None:
@@ -81,5 +81,9 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
-def verify_bootstrap_admin_credentials(username: str, password: str) -> bool:
-    return compare_digest(username, settings.admin_username.strip().lower()) and compare_digest(password, settings.admin_password)
+def bootstrap_admin_email() -> str:
+    return (settings.admin_email.strip() or settings.admin_username.strip()).lower()
+
+
+def verify_bootstrap_admin_credentials(email: str, password: str) -> bool:
+    return compare_digest(email.strip().lower(), bootstrap_admin_email()) and compare_digest(password, settings.admin_password)
