@@ -30,6 +30,11 @@
 - FastAPI backend;
 - SQLAlchemy база данни;
 - Alembic versioned database migrations;
+- first-run web installer в `/install`;
+- SQLite или PostgreSQL конфигурация през installer-а;
+- DB-backed admin accounts с роли `owner`, `admin`, `moderator`;
+- точно един owner и owner-only управление на акаунти;
+- scrypt password hashing;
 - `.xlsx` импорт чрез OpenPyXL;
 - разпознаване на реалния MMI2 формат с няколко блока в един лист;
 - извличане на работен номер, име и смяна А/Б/В/Г;
@@ -50,10 +55,72 @@
 - история на успешните импорти;
 - SHA-256 отпечатък на всеки импортиран файл без съхраняване на самия Excel;
 - REST API за бъдещо Android native приложение;
-- SQLite за development и PostgreSQL-ready `DATABASE_URL`;
 - Dockerfile и Docker Compose;
 - unit tests със синтетични данни;
 - GitHub Actions CI за автоматично изпълнение на migrations и тестовете.
+
+## Роли в административния панел
+
+### owner
+
+- единствен owner профил;
+- пълен оперативен достъп;
+- единствен може да създава и управлява admin/moderator акаунти;
+- owner профилът не може да бъде понижен или деактивиран през поддържания UI/API flow.
+
+### admin
+
+- preview/import на Excel графици;
+- ръчни корекции;
+- редакция на employee metadata;
+- import history и audit history;
+- няма управление на административни акаунти.
+
+### moderator
+
+- preview/import на Excel графици;
+- търсене на служители и зареждане на месец;
+- редактиране на дневните записи на графика;
+- не може да редактира име или постоянна смяна на служителя;
+- няма account management, import history или audit history.
+
+## First-run web installer
+
+След качване на проекта и стартиране на Python/ASGI приложението, ако няма завършена инсталация, първото отваряне на сайта автоматично пренасочва към:
+
+```text
+/install
+```
+
+Wizard-ът изпълнява:
+
+1. проверка на Python/Alembic и права за запис;
+2. избор между SQLite и PostgreSQL;
+3. тест на database връзката;
+4. `alembic upgrade head` към избраната база;
+5. създаване на единствения owner чрез имейл и парола;
+6. генериране на случаен JWT secret;
+7. запис на `.env`;
+8. изключване на bootstrap admin login-а;
+9. създаване на `install/install.lock`;
+10. изискване за restart/reload на Python приложението.
+
+Owner паролата не се записва в `.env`. В базата остава само нейният scrypt hash.
+
+След успешна инсталация installer-ът е заключен и повторна web инсталация не е разрешена.
+
+### Важно за FTP hosting
+
+FTP само качва файловете. MMI2 не е PHP приложение - hosting средата трябва да може да стартира Python ASGI приложение чрез например:
+
+- Python App / Passenger в hosting control panel;
+- VPS + systemd;
+- Docker;
+- друг ASGI-compatible deployment.
+
+При PostgreSQL самата database трябва предварително да съществува. Installer-ът създава таблиците и индексите чрез Alembic.
+
+Повече информация: `install/README.md`.
 
 ## Архитектура
 
@@ -92,6 +159,8 @@ Backend: FastAPI + SQLAlchemy + OpenPyXL.
 
 ## Стартиране локално
 
+За стандартен manual setup:
+
 ```bash
 python -m venv .venv
 ```
@@ -116,11 +185,15 @@ python -m alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-Приложението не създава или променя database schema автоматично при старт. След промени по схемата винаги изпълнявай Alembic migrations преди Uvicorn.
+Алтернативно, за чиста инсталация можеш да стартираш приложението без предварително създаден owner и да използваш `/install` wizard-а.
+
+Приложението не създава или променя database schema автоматично при нормален runtime. Schema промени се изпълняват чрез Alembic; единственото изключение е изрично стартираният first-run installer, който при потвърждение извиква Alembic към избраната база.
 
 Отвори `http://127.0.0.1:8000`.
 
 Admin: `http://127.0.0.1:8000/admin`.
+
+Admin accounts: `http://127.0.0.1:8000/admin/accounts`.
 
 Swagger/OpenAPI: `http://127.0.0.1:8000/docs`.
 
