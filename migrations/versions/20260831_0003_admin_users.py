@@ -22,7 +22,7 @@ def upgrade() -> None:
         op.create_table(
             "admin_users",
             sa.Column("id", sa.Integer(), nullable=False),
-            sa.Column("username", sa.String(length=64), nullable=False),
+            sa.Column("email", sa.String(length=255), nullable=False),
             sa.Column("password_hash", sa.String(length=255), nullable=False),
             sa.Column("role", sa.String(length=32), nullable=False),
             sa.Column("is_active", sa.Boolean(), nullable=False),
@@ -30,7 +30,7 @@ def upgrade() -> None:
             sa.Column("last_login_at", sa.DateTime(), nullable=True),
             sa.PrimaryKeyConstraint("id"),
         )
-        op.create_index("ix_admin_users_username", "admin_users", ["username"], unique=True)
+        op.create_index("ix_admin_users_email", "admin_users", ["email"], unique=True)
         op.create_index("ix_admin_users_role", "admin_users", ["role"], unique=False)
         op.create_index("ix_admin_users_is_active", "admin_users", ["is_active"], unique=False)
 
@@ -39,5 +39,5 @@ def downgrade() -> None:
     if _has_table("admin_users"):
         op.drop_index("ix_admin_users_is_active", table_name="admin_users")
         op.drop_index("ix_admin_users_role", table_name="admin_users")
-        op.drop_index("ix_admin_users_username", table_name="admin_users")
+        op.drop_index("ix_admin_users_email", table_name="admin_users")
         op.drop_table("admin_users")
