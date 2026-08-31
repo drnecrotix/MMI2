@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MMI2 - Инсталация</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,sans-serif;color-scheme:dark;--bg:#07101d;--panel:#101b2c;--panel2:#0b1524;--border:#293b55;--text:#eff6ff;--muted:#91a4bd;--accent:#4f7cff;--ok:#7fe39a;--warn:#ffbd72;--danger:#ff7f88}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -10%,#1a3154 0,#08111f 38%,#050b14 100%);color:var(--text)}main{width:min(900px,calc(100% - 28px));margin:auto;padding:48px 0 70px}.brand{display:flex;align-items:center;gap:14px;margin-bottom:24px}.logo{width:48px;height:48px;border-radius:15px;background:linear-gradient(145deg,#6b8cff,#365be6);display:grid;place-items:center;font-weight:900;font-size:20px;box-shadow:0 12px 35px #244ed666}.brand h1{margin:0;font-size:24px}.brand p{margin:4px 0 0;color:var(--muted)}.card{background:linear-gradient(180deg,#111e31,#0d1727);border:1px solid var(--border);border-radius:20px;padding:22px;margin-top:14px;box-shadow:0 20px 60px #0004}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0}.step{background:#0a1422;border:1px solid var(--border);padding:10px;border-radius:12px;color:var(--muted);font-size:12px;text-align:center}.step strong{display:block;color:var(--text);font-size:16px;margin-bottom:3px}.checks{display:grid;gap:8px}.check{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 14px;background:var(--panel2);border:1px solid var(--border);border-radius:12px}.check small{display:block;color:var(--muted);margin-top:3px}.badge{padding:5px 9px;border-radius:999px;font-weight:800;font-size:12px}.badge.ok{color:#07120a;background:var(--ok)}.badge.bad{color:#21080a;background:var(--danger)}label{display:block;color:#b8c7da;font-size:13px;font-weight:750;margin:14px 0 6px}input,select,button{font:inherit}input,select{width:100%;border:1px solid #324967;background:#07111f;color:#fff;border-radius:11px;padding:12px;outline:none}input:focus,select:focus{border-color:#6086ff;box-shadow:0 0 0 3px #4f7cff22}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}button{border:0;border-radius:11px;padding:12px 16px;background:var(--accent);color:#fff;font-weight:850;cursor:pointer}button.secondary{background:#263a55}button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.muted{color:var(--muted)}.status{margin-top:12px;min-height:22px;padding:10px 12px;border-radius:10px;background:#091421;color:var(--muted)}.status.ok{color:var(--ok);border:1px solid #2f6b42}.status.warn{color:var(--warn);border:1px solid #72522b}.status.bad{color:var(--danger);border:1px solid #71333b}.hidden{display:none!important}.notice{padding:14px;border:1px solid #5d492e;background:#241c10;border-radius:12px;color:#ffd39a;margin-top:14px}.success{padding:26px;text-align:center}.success .icon{font-size:46px;margin-bottom:8px}.success h2{margin:8px 0}.code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#07101c;border:1px solid var(--border);border-radius:10px;padding:10px;margin:10px 0;color:#cfe0ff}.locked{text-align:center;padding:30px}.locked a{color:#9eb6ff}@media(max-width:680px){main{padding-top:24px}.steps{grid-template-columns:1fr 1fr}.grid,.grid3{grid-template-columns:1fr}.actions{flex-direction:column}.actions button{width:100%}}
+  </style>
+</head>
+<body><main>
+  <div class="brand"><div class="logo">M2</div><div><h1>MMI2 Setup</h1><p>First-run web installer</p></div></div>
+
+  {% if state.installed and state.restart_required %}
+  <section class="card success">
+    <div class="icon">✓</div><h2>Инсталацията е завършена</h2>
+    <p class="muted">Конфигурацията и owner акаунтът са записани. Нужно е Python/ASGI приложението да бъде рестартирано, за да зареди новите настройки.</p>
+    <div class="notice">При hosting control panel използвай <strong>Restart Python App</strong> / <strong>Reload application</strong>. При systemd или Docker рестартирай съответния service/container.</div>
+    <p class="muted">След рестарта отвори сайта отново. Installer-ът ще бъде заключен автоматично.</p>
+  </section>
+  {% elif state.installed %}
+  <section class="card locked"><h2>Installer-ът е заключен</h2><p class="muted">MMI2 вече е инсталиран. За сигурност повторна инсталация през браузъра не е разрешена.</p><p><a href="/admin/login">Към admin login →</a></p></section>
+  {% else %}
+
+  <div class="steps"><div class="step"><strong>1</strong>Система</div><div class="step"><strong>2</strong>База данни</div><div class="step"><strong>3</strong>Owner</div><div class="step"><strong>4</strong>Инсталация</div></div>
+
+  <section class="card">
+    <h2>1. Проверка на средата</h2><p class="muted">Преди инсталацията MMI2 проверява дали хостингът може да записва конфигурацията и дали Alembic migrations са налични.</p>
+    <div class="checks">
+      {% for check in checks %}<div class="check"><div><strong>{{ check.name }}</strong><small>{{ check.detail }}</small></div><span class="badge {{ 'ok' if check.ok else 'bad' }}">{{ 'OK' if check.ok else 'Проблем' }}</span></div>{% endfor %}
+    </div>
+    <div class="notice">Само FTP качване не стартира Python приложение. Хостингът трябва да поддържа Python/ASGI, Passenger, VPS или Docker.</div>
+  </section>
+
+  <section class="card">
+    <h2>2. База данни</h2>
+    <label for="driver">Тип база</label><select id="driver"><option value="sqlite">SQLite - лесна инсталация</option><option value="postgresql">PostgreSQL - препоръчително за production</option></select>
+    <div id="sqliteFields"><label for="sqlitePath">SQLite файл</label><input id="sqlitePath" value="./mmi2.db" autocomplete="off"><p class="muted">Относителният път се създава спрямо root папката на проекта.</p></div>
+    <div id="postgresFields" class="hidden">
+      <div class="grid3"><div><label for="dbHost">Host</label><input id="dbHost" value="localhost"></div><div><label for="dbPort">Port</label><input id="dbPort" type="number" value="5432"></div><div><label for="sslmode">SSL</label><select id="sslmode"><option value="prefer">prefer</option><option value="require">require</option><option value="disable">disable</option></select></div></div>
+      <div class="grid"><div><label for="dbName">Database</label><input id="dbName" value="mmi2"></div><div><label for="dbUser">DB username</label><input id="dbUser" autocomplete="username"></div></div>
+      <label for="dbPassword">DB password</label><input id="dbPassword" type="password" autocomplete="new-password">
+      <p class="muted">PostgreSQL базата трябва вече да съществува. Installer-ът ще създаде необходимите таблици чрез Alembic.</p>
+    </div>
+    <div class="actions"><button class="secondary" id="testDb" onclick="testDatabase()">Тествай връзката</button></div><div id="dbStatus" class="status">Връзката още не е тествана.</div>
+  </section>
+
+  <section class="card">
+    <h2>3. Основен owner акаунт</h2><p class="muted">Това ще бъде единственият owner. След инсталацията той може да създава admin и moderator акаунти.</p>
+    <label for="appName">Име на системата</label><input id="appName" value="MMI2 Schedule System">
+    <label for="ownerEmail">Owner имейл</label><input id="ownerEmail" type="email" autocomplete="email" placeholder="owner@example.com">
+    <div class="grid"><div><label for="ownerPassword">Парола</label><input id="ownerPassword" type="password" minlength="12" autocomplete="new-password"></div><div><label for="ownerConfirm">Повтори паролата</label><input id="ownerConfirm" type="password" minlength="12" autocomplete="new-password"></div></div>
+    <p class="muted">Минимум 12 символа. Паролата няма да бъде записана в .env - в базата се съхранява само scrypt hash.</p>
+  </section>
+
+  <section class="card">
+    <h2>4. Инсталиране</h2><p class="muted">MMI2 ще тества базата, ще приложи migrations, ще създаде owner, ще генерира JWT secret, ще запише .env и ще заключи installer-а.</p>
+    <div class="actions"><button id="installButton" onclick="installNow()">Инсталирай MMI2</button></div><div id="installStatus" class="status">Готов за инсталация.</div>
+  </section>
+  {% endif %}
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let databaseVerified=false;
+function databasePayload(){return {driver:$('driver').value,sqlite_path:$('sqlitePath').value,host:$('dbHost').value,port:Number($('dbPort').value||5432),database:$('dbName').value,username:$('dbUser').value,password:$('dbPassword').value,sslmode:$('sslmode').value}}
+function switchDb(){const pg=$('driver').value==='postgresql';$('postgresFields').classList.toggle('hidden',!pg);$('sqliteFields').classList.toggle('hidden',pg);databaseVerified=false;$('dbStatus').className='status';$('dbStatus').textContent='Връзката още не е тествана.'}
+if($('driver')){$('driver').addEventListener('change',switchDb);['sqlitePath','dbHost','dbPort','dbName','dbUser','dbPassword','sslmode'].forEach(id=>$(id).addEventListener('input',()=>databaseVerified=false));}
+async function testDatabase(){const button=$('testDb');button.disabled=true;$('dbStatus').className='status';$('dbStatus').textContent='Тестване...';try{const r=await fetch('/install/api/database-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(databasePayload())});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Неуспешна връзка.');databaseVerified=true;$('dbStatus').className='status ok';$('dbStatus').textContent='Връзката е успешна: '+d.database;}catch(e){databaseVerified=false;$('dbStatus').className='status bad';$('dbStatus').textContent=e.message}finally{button.disabled=false}}
+async function installNow(){const button=$('installButton');if(!databaseVerified){$('installStatus').className='status warn';$('installStatus').textContent='Първо използвай „Тествай връзката“.';return}if($('ownerPassword').value!==$('ownerConfirm').value){$('installStatus').className='status bad';$('installStatus').textContent='Owner паролите не съвпадат.';return}if($('ownerPassword').value.length<12){$('installStatus').className='status bad';$('installStatus').textContent='Owner паролата трябва да е поне 12 символа.';return}button.disabled=true;$('installStatus').className='status';$('installStatus').textContent='Изпълняване на migrations и създаване на конфигурация...';const payload={database:databasePayload(),owner_email:$('ownerEmail').value.trim(),owner_password:$('ownerPassword').value,owner_password_confirm:$('ownerConfirm').value,app_name:$('appName').value.trim()};try{const r=await fetch('/install/api/complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Инсталацията не беше завършена.');$('installStatus').className='status ok';$('installStatus').textContent=d.message;setTimeout(()=>location.replace('/install/restart'),700)}catch(e){$('installStatus').className='status bad';$('installStatus').textContent=e.message;button.disabled=false}}
+</script>
+</body></html>
