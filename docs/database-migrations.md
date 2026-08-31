@@ -64,4 +64,13 @@ Covers the initial Alembic-managed schema:
 
 ### `20260831_0002` - admin audit actor
 
-Adds nullable `manual_edit_history.changed_by` so new manual corrections record the authenticated admin username. Existing audit rows remain valid with a null actor.
+Adds nullable `manual_edit_history.changed_by` so new manual corrections record the authenticated admin account. Existing audit rows remain valid with a null actor.
+
+### `20260831_0003` - database admin accounts
+
+- adds `admin_users`
+- uses unique email login
+- stores only scrypt password hashes
+- supports roles `owner`, `admin` and `moderator`
+- widens `manual_edit_history.changed_by` to 255 characters so complete admin emails can be stored
+- remains adoption-safe when the current metadata schema already exists

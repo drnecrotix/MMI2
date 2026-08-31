@@ -1,5 +1,5 @@
 from datetime import date
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LoginRequest(BaseModel):
@@ -15,14 +15,30 @@ class TokenResponse(BaseModel):
 
 
 class AdminLoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 
 class AdminTokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    username: str
+    email: str
+    role: str
+
+
+class AdminAccountCreate(BaseModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=10, max_length=200)
+    role: str = "admin"
+
+
+class AdminAccountUpdate(BaseModel):
+    role: str | None = None
+    is_active: bool | None = None
+
+
+class AdminPasswordUpdate(BaseModel):
+    password: str = Field(min_length=10, max_length=200)
 
 
 class ShiftOut(BaseModel):

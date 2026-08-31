@@ -11,10 +11,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
-from app.models import Employee, ImportHistory, ManualEditHistory, ShiftEntry
+from app.models import AdminUser, Employee, ImportHistory, ManualEditHistory, ShiftEntry
 from app.schemas import (
+    AdminAccountCreate,
+    AdminAccountUpdate,
     AdminEmployeeUpdate,
     AdminLoginRequest,
+    AdminPasswordUpdate,
     AdminShiftUpdate,
     AdminTokenResponse,
     LoginRequest,
@@ -22,12 +25,13 @@ from app.schemas import (
     ShiftOut,
     TokenResponse,
 )
-from app.security import (
-    create_access_token,
-    create_admin_token,
-    decode_access_token,
-    decode_admin_token,
-    verify_admin_credentials,
+from app.security import create_access_token, create_admin_token, decode_access_token, decode_admin_token, hash_password
+from app.services.admin_accounts import (
+    authenticate_admin,
+    require_admin_or_owner,
+    require_owner,
+    validate_account_email,
+    validate_assignable_role,
 )
 from app.services.excel_import import _shift_type, import_schedule_xlsx
 from app.services.excel_period import detect_schedule_period
@@ -37,7 +41,7 @@ from app.services.schedule_fallback import generate_2x2_fallback
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.10.0",
+    version="0.11.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -60,13 +64,19 @@ def current_employee(
     return employee
 
 
-def current_admin(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> str:
+def current_admin(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> AdminUser:
     if credentials is None:
         raise HTTPException(status_code=401, detail="Необходим е admin login.")
-    username = decode_admin_token(credentials.credentials)
-    if not username or username != settings.admin_username:
+    email = decode_admin_token(credentials.credentials)
+    if not email:
         raise HTTPException(status_code=401, detail="Невалидна или изтекла admin сесия.")
-    return username
+    account = db.scalar(select(AdminUser).where(AdminUser.email == email))
+    if not account or not account.is_active:
+        raise HTTPException(status_code=401, detail="Admin профилът е неактивен или не съществува.")
+    return account
 
 
 def resolve_period(content: bytes, filename: str, year: int | None, month: int | None) -> tuple[int, int, dict]:
@@ -91,6 +101,17 @@ def get_admin_employee(db: Session, employee_id: int) -> Employee:
     if not employee:
         raise HTTPException(status_code=404, detail="Служителят не е намерен.")
     return employee
+
+
+def admin_account_dict(account: AdminUser) -> dict:
+    return {
+        "id": account.id,
+        "email": account.email,
+        "role": account.role,
+        "is_active": account.is_active,
+        "created_at": account.created_at.isoformat(),
+        "last_login_at": account.last_login_at.isoformat() if account.last_login_at else None,
+    }
 
 
 @app.get("/health")
@@ -118,6 +139,11 @@ def admin_employees_page(request: Request):
     return templates.TemplateResponse(request=request, name="admin_employees.html", context={"app_name": settings.app_name})
 
 
+@app.get("/admin/accounts", response_class=HTMLResponse)
+def admin_accounts_page(request: Request):
+    return templates.TemplateResponse(request=request, name="admin_accounts.html", context={"app_name": settings.app_name})
+
+
 @app.post("/api/v1/auth/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     work_number = payload.work_number.strip()
@@ -133,16 +159,87 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/v1/admin/auth/login", response_model=AdminTokenResponse)
-def admin_login(payload: AdminLoginRequest):
-    username = payload.username.strip()
-    if not verify_admin_credentials(username, payload.password):
-        raise HTTPException(status_code=401, detail="Невалидно admin име или парола.")
-    return AdminTokenResponse(access_token=create_admin_token(username), username=username)
+def admin_login(payload: AdminLoginRequest, db: Session = Depends(get_db)):
+    account = authenticate_admin(db, payload.email, payload.password)
+    if not account:
+        raise HTTPException(status_code=401, detail="Невалиден имейл или парола.")
+    return AdminTokenResponse(
+        access_token=create_admin_token(account.email),
+        email=account.email,
+        role=account.role,
+    )
 
 
 @app.get("/api/v1/admin/me")
-def admin_me(username: str = Depends(current_admin)):
-    return {"username": username, "authenticated": True}
+def admin_me(account: AdminUser = Depends(current_admin)):
+    return {"email": account.email, "role": account.role, "authenticated": True}
+
+
+@app.get("/api/v1/admin/accounts")
+def list_admin_accounts(account: AdminUser = Depends(current_admin), db: Session = Depends(get_db)):
+    require_owner(account)
+    rows = db.scalars(select(AdminUser).order_by(AdminUser.role, AdminUser.email)).all()
+    return {"accounts": [admin_account_dict(row) for row in rows]}
+
+
+@app.post("/api/v1/admin/accounts")
+def create_admin_account(
+    payload: AdminAccountCreate,
+    account: AdminUser = Depends(current_admin),
+    db: Session = Depends(get_db),
+):
+    require_owner(account)
+    email = validate_account_email(payload.email)
+    role = validate_assignable_role(payload.role)
+    if db.scalar(select(AdminUser).where(AdminUser.email == email)):
+        raise HTTPException(status_code=409, detail="Вече има admin профил с този имейл.")
+    new_account = AdminUser(
+        email=email,
+        password_hash=hash_password(payload.password),
+        role=role,
+        is_active=True,
+    )
+    db.add(new_account)
+    db.commit()
+    db.refresh(new_account)
+    return {"status": "created", "account": admin_account_dict(new_account)}
+
+
+@app.patch("/api/v1/admin/accounts/{account_id}")
+def update_admin_account(
+    account_id: int,
+    payload: AdminAccountUpdate,
+    actor: AdminUser = Depends(current_admin),
+    db: Session = Depends(get_db),
+):
+    require_owner(actor)
+    target = db.get(AdminUser, account_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Admin профилът не е намерен.")
+    if target.role == "owner":
+        raise HTTPException(status_code=400, detail="Единственият owner профил не може да бъде понижаван или деактивиран.")
+    if payload.role is not None:
+        target.role = validate_assignable_role(payload.role)
+    if payload.is_active is not None:
+        target.is_active = payload.is_active
+    db.commit()
+    return {"status": "updated", "account": admin_account_dict(target)}
+
+
+@app.put("/api/v1/admin/accounts/{account_id}/password")
+def reset_admin_password(
+    account_id: int,
+    payload: AdminPasswordUpdate,
+    actor: AdminUser = Depends(current_admin),
+    db: Session = Depends(get_db),
+):
+    require_owner(actor)
+    target = db.get(AdminUser, account_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Admin профилът не е намерен.")
+    target.password_hash = hash_password(payload.password)
+    db.commit()
+    return {"status": "password_updated", "account_id": target.id}
 
 
 @app.get("/api/v1/me")
@@ -176,15 +273,7 @@ def my_schedule(
             month=month,
             schedule_source="imported",
             is_estimated=False,
-            shifts=[
-                ShiftOut(
-                    work_date=e.work_date,
-                    shift_type=e.shift_type,
-                    raw_code=e.raw_code,
-                    estimated=False,
-                )
-                for e in entries
-            ],
+            shifts=[ShiftOut(work_date=e.work_date, shift_type=e.shift_type, raw_code=e.raw_code, estimated=False) for e in entries],
         )
 
     fallback = generate_2x2_fallback(db, employee, year, month)
@@ -204,15 +293,7 @@ def my_schedule(
         fallback_confidence=fallback.confidence,
         fallback_basis=fallback.basis,
         fallback_reference_date=fallback.reference_date,
-        shifts=[
-            ShiftOut(
-                work_date=e.work_date,
-                shift_type=e.shift_type,
-                raw_code=e.raw_code,
-                estimated=True,
-            )
-            for e in fallback.shifts
-        ],
+        shifts=[ShiftOut(work_date=e.work_date, shift_type=e.shift_type, raw_code=e.raw_code, estimated=True) for e in fallback.shifts],
     )
 
 
@@ -221,7 +302,7 @@ async def preview_schedule(
     year: int | None = Form(default=None),
     month: int | None = Form(default=None),
     file: UploadFile = File(...),
-    _admin: str = Depends(current_admin),
+    _admin: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
     content = await file.read()
@@ -254,7 +335,7 @@ async def import_schedule(
     year: int | None = Form(default=None),
     month: int | None = Form(default=None),
     file: UploadFile = File(...),
-    _admin: str = Depends(current_admin),
+    _admin: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
     content = await file.read()
@@ -294,7 +375,8 @@ async def import_schedule(
 
 
 @app.get("/api/v1/admin/imports")
-def import_history(_admin: str = Depends(current_admin), db: Session = Depends(get_db)):
+def import_history(account: AdminUser = Depends(current_admin), db: Session = Depends(get_db)):
+    require_admin_or_owner(account)
     rows = db.scalars(select(ImportHistory).order_by(ImportHistory.imported_at.desc()).limit(100)).all()
     return {"imports": [
         {
@@ -317,14 +399,16 @@ def import_history(_admin: str = Depends(current_admin), db: Session = Depends(g
 def admin_employee_search(
     q: str = Query(default="", max_length=120),
     limit: int = Query(default=50, ge=1, le=200),
-    _admin: str = Depends(current_admin),
+    _admin: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
     statement = select(Employee).order_by(Employee.full_name, Employee.work_number).limit(limit)
     term = q.strip()
     if term:
         pattern = f"%{term}%"
-        statement = select(Employee).where(or_(Employee.work_number.ilike(pattern), Employee.full_name.ilike(pattern))).order_by(Employee.full_name, Employee.work_number).limit(limit)
+        statement = select(Employee).where(
+            or_(Employee.work_number.ilike(pattern), Employee.full_name.ilike(pattern))
+        ).order_by(Employee.full_name, Employee.work_number).limit(limit)
     employees = db.scalars(statement).all()
     return {"employees": [{"id": e.id, "work_number": e.work_number, "full_name": e.full_name, "team": e.team} for e in employees]}
 
@@ -334,7 +418,7 @@ def admin_employee_schedule(
     employee_id: int,
     year: int,
     month: int,
-    _admin: str = Depends(current_admin),
+    _admin: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
     if not 2020 <= year <= 2100 or not 1 <= month <= 12:
@@ -342,7 +426,11 @@ def admin_employee_schedule(
     employee = get_admin_employee(db, employee_id)
     first = date(year, month, 1)
     last = date(year, month, monthrange(year, month)[1])
-    entries = db.scalars(select(ShiftEntry).where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last).order_by(ShiftEntry.work_date)).all()
+    entries = db.scalars(
+        select(ShiftEntry)
+        .where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last)
+        .order_by(ShiftEntry.work_date)
+    ).all()
     return {
         "employee": {"id": employee.id, "work_number": employee.work_number, "full_name": employee.full_name, "team": employee.team},
         "year": year,
@@ -355,9 +443,10 @@ def admin_employee_schedule(
 def admin_update_employee(
     employee_id: int,
     payload: AdminEmployeeUpdate,
-    _admin: str = Depends(current_admin),
+    account: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
+    require_admin_or_owner(account)
     employee = get_admin_employee(db, employee_id)
     changes = []
     if payload.full_name is not None:
@@ -380,7 +469,7 @@ def admin_update_employee(
             field_name=field_name,
             old_value=old_value,
             new_value=new_value,
-            changed_by=_admin,
+            changed_by=account.email,
         ))
     db.commit()
     return {
@@ -395,7 +484,7 @@ def admin_update_shift(
     employee_id: int,
     work_date: date,
     payload: AdminShiftUpdate,
-    _admin: str = Depends(current_admin),
+    account: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
     employee = get_admin_employee(db, employee_id)
@@ -412,7 +501,13 @@ def admin_update_shift(
     else:
         old_value = ""
         new_value = f"{shift_type}|{raw_code}"
-        entry = ShiftEntry(employee_id=employee.id, work_date=work_date, shift_type=shift_type, raw_code=raw_code, source_file="manual-admin")
+        entry = ShiftEntry(
+            employee_id=employee.id,
+            work_date=work_date,
+            shift_type=shift_type,
+            raw_code=raw_code,
+            source_file="manual-admin",
+        )
         db.add(entry)
     db.add(ManualEditHistory(
         employee_id=employee.id,
@@ -420,7 +515,7 @@ def admin_update_shift(
         field_name="shift",
         old_value=old_value,
         new_value=new_value,
-        changed_by=_admin,
+        changed_by=account.email,
     ))
     db.commit()
     return {"status": "updated", "work_date": work_date, "shift_type": shift_type, "raw_code": raw_code}
@@ -430,9 +525,10 @@ def admin_update_shift(
 def admin_employee_edits(
     employee_id: int,
     limit: int = Query(default=100, ge=1, le=500),
-    _admin: str = Depends(current_admin),
+    account: AdminUser = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
+    require_admin_or_owner(account)
     employee = get_admin_employee(db, employee_id)
     rows = db.scalars(
         select(ManualEditHistory)

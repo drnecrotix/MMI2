@@ -7,7 +7,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-this-in-production"
     access_token_minutes: int = 43200
 
-    # Admin credentials are deployment secrets and must be overridden in .env.
+    # Bootstrap credentials are used only while the admin_users table is empty.
+    # ADMIN_EMAIL is preferred; ADMIN_USERNAME remains as a compatibility fallback.
+    admin_email: str = ""
     admin_username: str = "admin"
     admin_password: str = "change-this-admin-password"
     admin_token_minutes: int = 480
