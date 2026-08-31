@@ -1,11 +1,18 @@
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
+from hashlib import scrypt
 from hmac import compare_digest
+from secrets import token_bytes
 
 from jose import JWTError, jwt
 
 from app.config import settings
 
 ALGORITHM = "HS256"
+SCRYPT_N = 2**14
+SCRYPT_R = 8
+SCRYPT_P = 1
+SCRYPT_DKLEN = 32
 
 
 def _encode(subject: str, token_type: str, minutes: int) -> str:
@@ -40,5 +47,39 @@ def decode_admin_token(token: str) -> str | None:
     return _decode(token, "admin")
 
 
-def verify_admin_credentials(username: str, password: str) -> bool:
-    return compare_digest(username, settings.admin_username) and compare_digest(password, settings.admin_password)
+def hash_password(password: str) -> str:
+    salt = token_bytes(16)
+    digest = scrypt(
+        password.encode("utf-8"),
+        salt=salt,
+        n=SCRYPT_N,
+        r=SCRYPT_R,
+        p=SCRYPT_P,
+        dklen=SCRYPT_DKLEN,
+    )
+    salt_text = urlsafe_b64encode(salt).decode("ascii")
+    digest_text = urlsafe_b64encode(digest).decode("ascii")
+    return f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}${salt_text}${digest_text}"
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, n, r, p, salt_text, digest_text = encoded.split("$", 5)
+        if algorithm != "scrypt":
+            return False
+        expected = urlsafe_b64decode(digest_text.encode("ascii"))
+        actual = scrypt(
+            password.encode("utf-8"),
+            salt=urlsafe_b64decode(salt_text.encode("ascii")),
+            n=int(n),
+            r=int(r),
+            p=int(p),
+            dklen=len(expected),
+        )
+        return compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def verify_bootstrap_admin_credentials(username: str, password: str) -> bool:
+    return compare_digest(username, settings.admin_username.strip().lower()) and compare_digest(password, settings.admin_password)
