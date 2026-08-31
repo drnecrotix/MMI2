@@ -190,6 +190,12 @@ def _shift_type(value: object) -> tuple[str, str]:
 
 
 def import_schedule_xlsx(db: Session, content: bytes, filename: str, year: int, month: int) -> ImportResult:
+    """Parse and stage an Excel schedule in the caller's current transaction.
+
+    This function deliberately does not commit. The caller is responsible for
+    committing the schedule together with its ImportHistory row, or rolling the
+    whole operation back if any part of the import fails.
+    """
     if Path(filename).suffix.lower() != ".xlsx":
         raise ValueError("Поддържат се само .xlsx файлове.")
 
@@ -258,9 +264,12 @@ def import_schedule_xlsx(db: Session, content: bytes, filename: str, year: int, 
                         ))
                     touched_shift_keys.add(key)
 
-    db.commit()
     result.employees = len(seen_employee_ids)
     result.shifts = len(touched_shift_keys)
     if result.employees == 0:
         raise ValueError("Не беше открит използваем MMI2 график с данни за служители.")
+
+    # Surface database constraint errors before the caller creates history, but
+    # keep all staged changes uncommitted so they can still be rolled back.
+    db.flush()
     return result
