@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import AdminUser
 from app.security import hash_password, verify_bootstrap_admin_credentials, verify_password
 
@@ -28,7 +29,7 @@ def authenticate_admin(db: Session, email: str, password: str) -> AdminUser | No
 
     if account is None:
         count = db.scalar(select(func.count(AdminUser.id))) or 0
-        if count == 0 and verify_bootstrap_admin_credentials(email, password):
+        if settings.admin_bootstrap_enabled and count == 0 and verify_bootstrap_admin_credentials(email, password):
             account = AdminUser(
                 email=email,
                 password_hash=hash_password(password),
