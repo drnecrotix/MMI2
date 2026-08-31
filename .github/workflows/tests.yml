@@ -22,8 +22,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Validate migrations on empty database
+        env:
+          DATABASE_URL: sqlite:///./ci-migrations.db
+          JWT_SECRET: test-secret
+          ADMIN_USERNAME: test-admin
+          ADMIN_PASSWORD: test-admin-password
+        run: python -m alembic upgrade head
+
       - name: Run tests
         env:
+          DATABASE_URL: sqlite:///./ci-tests.db
           JWT_SECRET: test-secret
-          ADMIN_IMPORT_KEY: test-admin-key
+          ADMIN_USERNAME: test-admin
+          ADMIN_PASSWORD: test-admin-password
         run: python -m unittest discover -s tests -v
