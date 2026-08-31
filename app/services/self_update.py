@@ -53,6 +53,7 @@ MANAGED_FILES = (
     "run.py",
     "passenger_wsgi.py",
     "rollback_update.py",
+    "update_mmi2.py",
 )
 PRESERVED_RUNTIME_FILES = (
     "install/install.lock",
@@ -221,6 +222,7 @@ def _safe_extract_archive(archive_path: Path, destination: Path) -> Path:
                 raise SelfUpdateError("Изтегленият update архив е празен.")
 
             roots: set[str] = set()
+            destination_resolved = destination.resolve()
             for info in infos:
                 pure = PurePosixPath(info.filename)
                 if pure.is_absolute() or ".." in pure.parts:
@@ -234,7 +236,7 @@ def _safe_extract_archive(archive_path: Path, destination: Path) -> Path:
 
                 target = destination.joinpath(*pure.parts)
                 resolved = target.resolve()
-                if destination.resolve() not in (resolved, *resolved.parents):
+                if destination_resolved not in (resolved, *resolved.parents):
                     raise SelfUpdateError("Update архивът опитва да записва извън staging директорията.")
                 if info.is_dir():
                     target.mkdir(parents=True, exist_ok=True)
@@ -287,6 +289,12 @@ def _run_command(args: list[str], *, cwd: Path, timeout: int = 120, env: dict[st
         tail = (completed.stdout or "")[-3000:]
         raise SelfUpdateError(f"Команда за update завърши с грешка.\n{tail}")
     return completed.stdout or ""
+
+
+def _worker_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["MMI2_UPDATE_WORKER"] = "1"
+    return env
 
 
 def _compile_staged_code(staged_root: Path) -> None:
@@ -462,7 +470,12 @@ def _read_json(path: Path) -> dict | None:
 
 
 def _run_migrations() -> None:
-    _run_command([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=PROJECT_ROOT, timeout=180)
+    _run_command(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=PROJECT_ROOT,
+        timeout=180,
+        env=_worker_env(),
+    )
 
 
 def _smoke_test_new_runtime() -> None:
@@ -470,7 +483,18 @@ def _smoke_test_new_runtime() -> None:
         [sys.executable, "-c", "import app.main; print(app.main.app.version)"],
         cwd=PROJECT_ROOT,
         timeout=60,
+        env=_worker_env(),
     )
+
+
+def _request_passenger_restart() -> bool:
+    try:
+        restart_file = PROJECT_ROOT / "tmp" / "restart.txt"
+        restart_file.parent.mkdir(parents=True, exist_ok=True)
+        restart_file.touch()
+        return True
+    except OSError:
+        return False
 
 
 def _create_backup(target: UpdateTarget) -> tuple[str, Path, dict]:
@@ -573,13 +597,18 @@ def apply_update(pr_number: int) -> dict:
             }
             _write_json_atomic(RESTART_FILE, restart_marker)
             IN_PROGRESS_FILE.unlink(missing_ok=True)
+            restart_requested = _request_passenger_restart()
             return {
                 "status": "updated",
                 "target_pr": staged_pr,
                 "target_version": target_version,
                 "backup_id": backup_id,
                 "restart_required": True,
-                "message": "Update-ът е приложен и проверен. Рестартирай Python приложението, за да зареди новия build.",
+                "passenger_restart_requested": restart_requested,
+                "message": (
+                    "Update-ът е приложен и проверен. Passenger restart е заявен; ако панелът не го рестартира "
+                    "автоматично, използвай Restart Python App / Reload application."
+                ),
             }
 
 
