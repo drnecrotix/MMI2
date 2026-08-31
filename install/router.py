@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -14,7 +16,7 @@ from install.service import (
 
 
 router = APIRouter(prefix="/install", tags=["installer"])
-templates = Jinja2Templates(directory="install/templates")
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
 
 @router.get("", response_class=HTMLResponse)
