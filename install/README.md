@@ -15,15 +15,69 @@ Installer-ът:
 5. създава единствения `owner` акаунт;
 6. записва `.env` с нов JWT secret и `ADMIN_BOOTSTRAP_ENABLED=false`;
 7. създава `install/install.lock`;
-8. изисква restart на Python/ASGI приложението.
+8. изисква restart на Python приложението.
 
 Owner паролата **не се записва в `.env`**. В `admin_users` се пази само scrypt hash.
 
+## N0C / PlanetHoster
+
+MMI2 поддържа N0C Python Applications. Проектът съдържа:
+
+```text
+run.py
+```
+
+за N0C startup file с entry point:
+
+```text
+app
+```
+
+В MG Panel създай Python приложение от **Languages > Python**, избери Python 3.11+, application directory и root URL `/`, когато е възможно. След създаването качи MMI2 в application directory, активирай virtualenv-а, изпълни:
+
+```bash
+pip install -r requirements.txt
+```
+
+и рестартирай приложението.
+
+N0C използва Passenger за Python приложенията. `run.py` преобразува FastAPI ASGI приложението до WSGI чрез `a2wsgi`.
+
+## cPanel / Passenger
+
+За cPanel/CloudLinux проектът съдържа:
+
+```text
+passenger_wsgi.py
+```
+
+с callable:
+
+```text
+application
+```
+
+В **Setup Python App / Python Selector** използвай Python 3.11+, repository directory като Application root, `passenger_wsgi.py` като WSGI/startup entrypoint и `application` като callable. След това активирай virtualenv-а, инсталирай `requirements.txt` и рестартирай Passenger app-а.
+
 ## FTP / shared hosting
 
-Качването през FTP е само начин за прехвърляне на файловете. Хостингът трябва да може да стартира Python ASGI приложение чрез например Passenger, собствен Python app manager, VPS/systemd или Docker.
+FTP/FTPS е подходящ за качване на файловете, но Python application environment трябва първо да бъде създаден от N0C/cPanel. Инсталирането на Python dependencies обикновено изисква SSH или package controls на hosting панела.
 
-След приключване на installer-а използвай функцията на hosting control panel за restart/reload на Python приложението.
+Препоръчва се MMI2 да работи на root-а на отделен домейн/поддомейн, например:
+
+```text
+schedule.example.com/
+```
+
+вместо под `/mmi2`, защото web интерфейсът използва root-relative URL-и като `/install` и `/admin`.
+
+Подробните инструкции и troubleshooting са в:
+
+```text
+docs/hosting-deployment.md
+```
+
+След приключване на installer-а използвай функцията на N0C/cPanel за restart/reload на Python приложението.
 
 ## PostgreSQL
 
