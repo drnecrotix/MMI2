@@ -15,8 +15,9 @@
   {% if state.installed and state.restart_required %}
   <section class="card success">
     <div class="icon">✓</div><h2>Инсталацията е завършена</h2>
-    <p class="muted">Конфигурацията и owner акаунтът са записани. Нужно е Python/ASGI приложението да бъде рестартирано, за да зареди новите настройки.</p>
-    <div class="notice">При hosting control panel използвай <strong>Restart Python App</strong> / <strong>Reload application</strong>. При systemd или Docker рестартирай съответния service/container.</div>
+    <p class="muted">Конфигурацията и owner акаунтът са записани. Нужно е приложението да бъде рестартирано, за да зареди новите настройки.</p>
+    <div class="notice"><strong>{{ hosting.restart_title }}</strong><br><br>{{ hosting.restart_instruction }}</div>
+    <div class="code">{{ hosting.label }} · {{ hosting.entrypoint }}</div>
     <p class="muted">След рестарта отвори сайта отново. Installer-ът ще бъде заключен автоматично.</p>
   </section>
   {% elif state.installed %}
@@ -28,9 +29,10 @@
   <section class="card">
     <h2>1. Проверка на средата</h2><p class="muted">Преди инсталацията MMI2 проверява дали хостингът може да записва конфигурацията и дали Alembic migrations са налични.</p>
     <div class="checks">
+      <div class="check"><div><strong>Hosting runtime</strong><small>{{ hosting.entrypoint }}</small></div><span class="badge ok">{{ hosting.label }}</span></div>
       {% for check in checks %}<div class="check"><div><strong>{{ check.name }}</strong><small>{{ check.detail }}</small></div><span class="badge {{ 'ok' if check.ok else 'bad' }}">{{ 'OK' if check.ok else 'Проблем' }}</span></div>{% endfor %}
     </div>
-    <div class="notice">Само FTP качване не стартира Python приложение. Хостингът трябва да поддържа Python/ASGI, Passenger, VPS или Docker.</div>
+    <div class="notice">MMI2 разпознава deployment entrypoint-а автоматично. За N0C използвай <strong>run.py → app</strong>, а за cPanel <strong>passenger_wsgi.py → application</strong>.</div>
   </section>
 
   <section class="card">
