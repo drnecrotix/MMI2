@@ -29,6 +29,7 @@ class ShiftOut(BaseModel):
     work_date: date
     shift_type: str
     raw_code: str
+    estimated: bool = False
 
 
 class MonthlyScheduleOut(BaseModel):
@@ -38,6 +39,12 @@ class MonthlyScheduleOut(BaseModel):
     year: int
     month: int
     shifts: list[ShiftOut]
+    schedule_source: str = "imported"
+    is_estimated: bool = False
+    warning: str | None = None
+    fallback_confidence: str | None = None
+    fallback_basis: str | None = None
+    fallback_reference_date: date | None = None
 
 
 class AdminEmployeeUpdate(BaseModel):
