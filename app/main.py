@@ -38,12 +38,14 @@ from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
 from app.services.schedule_compare import compare_preview_to_database
 from app.services.schedule_fallback import generate_2x2_fallback
+from app.services.update_checker import UpdateCheckError, check_for_updates
+from app.version import APP_VERSION
 from install.router import router as installer_router
 from install.service import get_installation_state
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.12.0",
+    version=APP_VERSION,
     description="MMI2 monthly work schedule import and employee API",
 )
 app.include_router(installer_router)
@@ -55,10 +57,18 @@ TEAM_CODES = {"А", "Б", "В", "Г"}
 @app.middleware("http")
 async def installation_gate(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/install") or path == "/health":
+    if path == "/health":
         return await call_next(request)
 
     state = get_installation_state()
+
+    if path.startswith("/install"):
+        if not state.installed:
+            return await call_next(request)
+        if state.restart_required and path.rstrip("/") == "/install/restart":
+            return await call_next(request)
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
     if not state.installed:
         if request.method == "GET" and not path.startswith("/api/"):
             return RedirectResponse(url="/install", status_code=303)
@@ -153,7 +163,7 @@ def admin_account_dict(account: AdminUser) -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": settings.app_name}
+    return {"status": "ok", "service": settings.app_name, "version": APP_VERSION}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -209,7 +219,19 @@ def admin_login(payload: AdminLoginRequest, db: Session = Depends(get_db)):
 
 @app.get("/api/v1/admin/me")
 def admin_me(account: AdminUser = Depends(current_admin)):
-    return {"email": account.email, "role": account.role, "authenticated": True}
+    return {"email": account.email, "role": account.role, "authenticated": True, "version": APP_VERSION}
+
+
+@app.get("/api/v1/admin/update/check")
+def admin_update_check(
+    force: bool = Query(default=False),
+    account: AdminUser = Depends(current_admin),
+):
+    require_admin_or_owner(account)
+    try:
+        return check_for_updates(force=force)
+    except UpdateCheckError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/v1/admin/accounts")
