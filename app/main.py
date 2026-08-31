@@ -10,7 +10,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import Base, engine, get_db
+from app.db import get_db
 from app.models import Employee, ImportHistory, ManualEditHistory, ShiftEntry
 from app.schemas import (
     AdminEmployeeUpdate,
@@ -34,8 +34,6 @@ from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
 from app.services.schedule_compare import compare_preview_to_database
 from app.services.schedule_fallback import generate_2x2_fallback
-
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
