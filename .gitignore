@@ -9,6 +9,8 @@ venv/
 .vscode/
 .DS_Store
 uploads/
+.update/
 install/install.lock
 install/restart.required
 install/*.tmp
+tmp/restart.txt
