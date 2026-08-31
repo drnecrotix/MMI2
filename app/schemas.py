@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 
@@ -48,16 +48,34 @@ class ShiftOut(BaseModel):
     estimated: bool = False
 
 
+class ScheduleSummaryOut(BaseModel):
+    day: int = 0
+    night: int = 0
+    leave: int = 0
+    sick_leave: int = 0
+    rest: int = 0
+    unknown: int = 0
+    predicted_work: int = 0
+    predicted_rest: int = 0
+    missing: int = 0
+
+
 class MonthlyScheduleOut(BaseModel):
     employee_name: str
     work_number: str
     team: str | None = None
     year: int
     month: int
+    days_in_month: int
     shifts: list[ShiftOut]
+    summary: ScheduleSummaryOut
     schedule_source: str = "imported"
+    schedule_status: str = "official"
     is_estimated: bool = False
+    is_partial: bool = False
+    missing_days: int = 0
     warning: str | None = None
+    last_updated_at: datetime | None = None
     fallback_confidence: str | None = None
     fallback_basis: str | None = None
     fallback_reference_date: date | None = None
