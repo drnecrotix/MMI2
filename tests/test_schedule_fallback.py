@@ -67,11 +67,17 @@ class ScheduleFallbackTests(unittest.TestCase):
 
             self.assertTrue(response.is_estimated)
             self.assertEqual(response.schedule_source, "automatic_2x2")
+            self.assertEqual(response.schedule_status, "estimated")
             self.assertIn("2 на 2", response.warning)
+            self.assertEqual(response.days_in_month, 30)
             self.assertEqual(len(response.shifts), 30)
+            self.assertEqual(
+                response.summary.predicted_work + response.summary.predicted_rest,
+                30,
+            )
             self.assertTrue(all(s.estimated for s in response.shifts))
 
-    def test_imported_month_stays_official(self):
+    def test_partial_imported_month_returns_explicit_missing_days(self):
         with Session(self.engine) as db:
             employee = Employee(work_number="7004", full_name="С График", team="В")
             db.add(employee)
@@ -88,9 +94,17 @@ class ScheduleFallbackTests(unittest.TestCase):
             response = my_schedule(year=2026, month=9, employee=employee, db=db)
 
             self.assertFalse(response.is_estimated)
+            self.assertTrue(response.is_partial)
             self.assertEqual(response.schedule_source, "imported")
-            self.assertEqual(len(response.shifts), 1)
+            self.assertEqual(response.schedule_status, "partial")
+            self.assertEqual(response.days_in_month, 30)
+            self.assertEqual(len(response.shifts), 30)
             self.assertEqual(response.shifts[0].shift_type, "night")
+            self.assertEqual(response.summary.night, 1)
+            self.assertEqual(response.summary.missing, 29)
+            self.assertEqual(response.missing_days, 29)
+            self.assertEqual(response.shifts[1].shift_type, "missing")
+            self.assertIn("частично", response.warning.lower())
 
 
 if __name__ == "__main__":
