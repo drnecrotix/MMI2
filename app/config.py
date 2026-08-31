@@ -9,6 +9,8 @@ class Settings(BaseSettings):
 
     # Bootstrap credentials are used only while the admin_users table is empty.
     # ADMIN_EMAIL is preferred; ADMIN_USERNAME remains as a compatibility fallback.
+    # The web installer disables bootstrap after it creates the owner directly.
+    admin_bootstrap_enabled: bool = True
     admin_email: str = ""
     admin_username: str = "admin"
     admin_password: str = "change-this-admin-password"
