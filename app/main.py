@@ -2,7 +2,7 @@ from calendar import monthrange
 from datetime import date
 from hashlib import sha256
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
@@ -14,13 +14,21 @@ from app.db import Base, engine, get_db
 from app.models import Employee, ImportHistory, ManualEditHistory, ShiftEntry
 from app.schemas import (
     AdminEmployeeUpdate,
+    AdminLoginRequest,
     AdminShiftUpdate,
+    AdminTokenResponse,
     LoginRequest,
     MonthlyScheduleOut,
     ShiftOut,
     TokenResponse,
 )
-from app.security import create_access_token, decode_access_token
+from app.security import (
+    create_access_token,
+    create_admin_token,
+    decode_access_token,
+    decode_admin_token,
+    verify_admin_credentials,
+)
 from app.services.excel_import import _shift_type, import_schedule_xlsx
 from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
@@ -30,7 +38,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.7.0",
+    version="0.8.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -46,33 +54,32 @@ def current_employee(
         raise HTTPException(status_code=401, detail="Липсва access token.")
     work_number = decode_access_token(credentials.credentials)
     if not work_number:
-        raise HTTPException(status_code=401, detail="Невалиден или изтекъл token.")
+        raise HTTPException(status_code=401, detail="Невалиден или изтекъл employee token.")
     employee = db.scalar(select(Employee).where(Employee.work_number == work_number))
     if not employee:
         raise HTTPException(status_code=401, detail="Служителят не е намерен.")
     return employee
 
 
-def require_admin_key(x_admin_key: str | None) -> None:
-    if x_admin_key != settings.admin_import_key:
-        raise HTTPException(status_code=403, detail="Невалиден admin key.")
+def current_admin(credentials: HTTPAuthorizationCredentials | None = Depends(bearer)) -> str:
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Необходим е admin login.")
+    username = decode_admin_token(credentials.credentials)
+    if not username or username != settings.admin_username:
+        raise HTTPException(status_code=401, detail="Невалидна или изтекла admin сесия.")
+    return username
 
 
 def resolve_period(content: bytes, filename: str, year: int | None, month: int | None) -> tuple[int, int, dict]:
     if (year is None) != (month is None):
         raise HTTPException(status_code=400, detail="Въведи едновременно година и месец или остави и двете празни за автоматично разпознаване.")
-
     if year is not None and month is not None:
         if not 2020 <= year <= 2100 or not 1 <= month <= 12:
             raise HTTPException(status_code=400, detail="Невалиден период.")
         return year, month, {"source": "manual", "confidence": "manual", "evidence": "въведен от администратора"}
-
     detected = detect_schedule_period(content, filename)
     if detected is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Месецът и годината не могат да бъдат разпознати надеждно от Excel файла. Въведи ги ръчно.",
-        )
+        raise HTTPException(status_code=400, detail="Месецът и годината не могат да бъдат разпознати надеждно от Excel файла. Въведи ги ръчно.")
     return detected.year, detected.month, {
         "source": "auto",
         "confidence": detected.confidence,
@@ -95,6 +102,11 @@ def health():
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={"app_name": settings.app_name})
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_page(request: Request):
+    return templates.TemplateResponse(request=request, name="admin_login.html", context={"app_name": settings.app_name})
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -121,6 +133,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
+@app.post("/api/v1/admin/auth/login", response_model=AdminTokenResponse)
+def admin_login(payload: AdminLoginRequest):
+    username = payload.username.strip()
+    if not verify_admin_credentials(username, payload.password):
+        raise HTTPException(status_code=401, detail="Невалидно admin име или парола.")
+    return AdminTokenResponse(access_token=create_admin_token(username), username=username)
+
+
+@app.get("/api/v1/admin/me")
+def admin_me(username: str = Depends(current_admin)):
+    return {"username": username, "authenticated": True}
+
+
 @app.get("/api/v1/me")
 def me(employee: Employee = Depends(current_employee)):
     return {"work_number": employee.work_number, "full_name": employee.full_name, "team": employee.team}
@@ -139,11 +164,7 @@ def my_schedule(
     last = date(year, month, monthrange(year, month)[1])
     entries = db.scalars(
         select(ShiftEntry)
-        .where(
-            ShiftEntry.employee_id == employee.id,
-            ShiftEntry.work_date >= first,
-            ShiftEntry.work_date <= last,
-        )
+        .where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last)
         .order_by(ShiftEntry.work_date)
     ).all()
     return MonthlyScheduleOut(
@@ -161,10 +182,9 @@ async def preview_schedule(
     year: int | None = Form(default=None),
     month: int | None = Form(default=None),
     file: UploadFile = File(...),
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     content = await file.read()
     filename = file.filename or "schedule.xlsx"
     resolved_year, resolved_month, period = resolve_period(content, filename, year, month)
@@ -172,7 +192,6 @@ async def preview_schedule(
         result = preview_schedule_xlsx(content, filename, resolved_year, resolved_month)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     comparison = compare_preview_to_database(db, result, resolved_year, resolved_month)
     return {
         "status": "preview",
@@ -196,10 +215,9 @@ async def import_schedule(
     year: int | None = Form(default=None),
     month: int | None = Form(default=None),
     file: UploadFile = File(...),
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     content = await file.read()
     filename = file.filename or "schedule.xlsx"
     resolved_year, resolved_month, period = resolve_period(content, filename, year, month)
@@ -207,7 +225,6 @@ async def import_schedule(
         result = import_schedule_xlsx(db, content, filename, resolved_year, resolved_month)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     history = ImportHistory(
         filename=filename,
         content_hash=sha256(content).hexdigest(),
@@ -222,7 +239,6 @@ async def import_schedule(
     db.add(history)
     db.commit()
     db.refresh(history)
-
     return {
         "status": "imported",
         "import_id": history.id,
@@ -239,57 +255,39 @@ async def import_schedule(
 
 
 @app.get("/api/v1/admin/imports")
-def import_history(
-    x_admin_key: str | None = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    require_admin_key(x_admin_key)
+def import_history(_admin: str = Depends(current_admin), db: Session = Depends(get_db)):
     rows = db.scalars(select(ImportHistory).order_by(ImportHistory.imported_at.desc()).limit(100)).all()
-    return {
-        "imports": [
-            {
-                "id": row.id,
-                "filename": row.filename,
-                "year": row.year,
-                "month": row.month,
-                "employees": row.employees,
-                "shifts": row.shifts,
-                "schedule_blocks": row.schedule_blocks,
-                "duplicate_employee_rows": row.duplicate_employee_rows,
-                "conflicting_days": row.conflicting_days,
-                "content_hash": row.content_hash,
-                "imported_at": row.imported_at.isoformat(),
-            }
-            for row in rows
-        ]
-    }
+    return {"imports": [
+        {
+            "id": row.id,
+            "filename": row.filename,
+            "year": row.year,
+            "month": row.month,
+            "employees": row.employees,
+            "shifts": row.shifts,
+            "schedule_blocks": row.schedule_blocks,
+            "duplicate_employee_rows": row.duplicate_employee_rows,
+            "conflicting_days": row.conflicting_days,
+            "content_hash": row.content_hash,
+            "imported_at": row.imported_at.isoformat(),
+        } for row in rows
+    ]}
 
 
 @app.get("/api/v1/admin/employees")
 def admin_employee_search(
     q: str = Query(default="", max_length=120),
     limit: int = Query(default=50, ge=1, le=200),
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     statement = select(Employee).order_by(Employee.full_name, Employee.work_number).limit(limit)
     term = q.strip()
     if term:
         pattern = f"%{term}%"
-        statement = (
-            select(Employee)
-            .where(or_(Employee.work_number.ilike(pattern), Employee.full_name.ilike(pattern)))
-            .order_by(Employee.full_name, Employee.work_number)
-            .limit(limit)
-        )
+        statement = select(Employee).where(or_(Employee.work_number.ilike(pattern), Employee.full_name.ilike(pattern))).order_by(Employee.full_name, Employee.work_number).limit(limit)
     employees = db.scalars(statement).all()
-    return {
-        "employees": [
-            {"id": e.id, "work_number": e.work_number, "full_name": e.full_name, "team": e.team}
-            for e in employees
-        ]
-    }
+    return {"employees": [{"id": e.id, "work_number": e.work_number, "full_name": e.full_name, "team": e.team} for e in employees]}
 
 
 @app.get("/api/v1/admin/employees/{employee_id}/schedule/{year}/{month}")
@@ -297,28 +295,20 @@ def admin_employee_schedule(
     employee_id: int,
     year: int,
     month: int,
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     if not 2020 <= year <= 2100 or not 1 <= month <= 12:
         raise HTTPException(status_code=400, detail="Невалиден период.")
     employee = get_admin_employee(db, employee_id)
     first = date(year, month, 1)
     last = date(year, month, monthrange(year, month)[1])
-    entries = db.scalars(
-        select(ShiftEntry)
-        .where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last)
-        .order_by(ShiftEntry.work_date)
-    ).all()
+    entries = db.scalars(select(ShiftEntry).where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last).order_by(ShiftEntry.work_date)).all()
     return {
         "employee": {"id": employee.id, "work_number": employee.work_number, "full_name": employee.full_name, "team": employee.team},
         "year": year,
         "month": month,
-        "shifts": [
-            {"work_date": e.work_date.isoformat(), "shift_type": e.shift_type, "raw_code": e.raw_code, "source_file": e.source_file}
-            for e in entries
-        ],
+        "shifts": [{"work_date": e.work_date.isoformat(), "shift_type": e.shift_type, "raw_code": e.raw_code, "source_file": e.source_file} for e in entries],
     }
 
 
@@ -326,13 +316,11 @@ def admin_employee_schedule(
 def admin_update_employee(
     employee_id: int,
     payload: AdminEmployeeUpdate,
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     employee = get_admin_employee(db, employee_id)
     changes = []
-
     if payload.full_name is not None:
         new_name = payload.full_name.strip()
         if len(new_name) < 3:
@@ -340,7 +328,6 @@ def admin_update_employee(
         if new_name != employee.full_name:
             changes.append(("full_name", employee.full_name, new_name))
             employee.full_name = new_name
-
     if payload.team is not None:
         new_team = payload.team.strip().upper()
         if new_team not in TEAM_CODES:
@@ -348,14 +335,8 @@ def admin_update_employee(
         if new_team != employee.team:
             changes.append(("team", employee.team or "", new_team))
             employee.team = new_team
-
     for field_name, old_value, new_value in changes:
-        db.add(ManualEditHistory(
-            employee_id=employee.id,
-            field_name=field_name,
-            old_value=old_value,
-            new_value=new_value,
-        ))
+        db.add(ManualEditHistory(employee_id=employee.id, field_name=field_name, old_value=old_value, new_value=new_value))
     db.commit()
     return {
         "status": "updated" if changes else "unchanged",
@@ -369,14 +350,12 @@ def admin_update_shift(
     employee_id: int,
     work_date: date,
     payload: AdminShiftUpdate,
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     employee = get_admin_employee(db, employee_id)
     shift_type, raw_code = _shift_type(payload.raw_code)
     entry = db.scalar(select(ShiftEntry).where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date == work_date))
-
     if entry:
         old_value = f"{entry.shift_type}|{entry.raw_code}"
         new_value = f"{shift_type}|{raw_code}"
@@ -388,22 +367,9 @@ def admin_update_shift(
     else:
         old_value = ""
         new_value = f"{shift_type}|{raw_code}"
-        entry = ShiftEntry(
-            employee_id=employee.id,
-            work_date=work_date,
-            shift_type=shift_type,
-            raw_code=raw_code,
-            source_file="manual-admin",
-        )
+        entry = ShiftEntry(employee_id=employee.id, work_date=work_date, shift_type=shift_type, raw_code=raw_code, source_file="manual-admin")
         db.add(entry)
-
-    db.add(ManualEditHistory(
-        employee_id=employee.id,
-        work_date=work_date,
-        field_name="shift",
-        old_value=old_value,
-        new_value=new_value,
-    ))
+    db.add(ManualEditHistory(employee_id=employee.id, work_date=work_date, field_name="shift", old_value=old_value, new_value=new_value))
     db.commit()
     return {"status": "updated", "work_date": work_date, "shift_type": shift_type, "raw_code": raw_code}
 
@@ -412,10 +378,9 @@ def admin_update_shift(
 def admin_employee_edits(
     employee_id: int,
     limit: int = Query(default=100, ge=1, le=500),
-    x_admin_key: str | None = Header(default=None),
+    _admin: str = Depends(current_admin),
     db: Session = Depends(get_db),
 ):
-    require_admin_key(x_admin_key)
     employee = get_admin_employee(db, employee_id)
     rows = db.scalars(
         select(ManualEditHistory)
@@ -423,16 +388,13 @@ def admin_employee_edits(
         .order_by(ManualEditHistory.changed_at.desc(), ManualEditHistory.id.desc())
         .limit(limit)
     ).all()
-    return {
-        "edits": [
-            {
-                "id": row.id,
-                "work_date": row.work_date.isoformat() if row.work_date else None,
-                "field_name": row.field_name,
-                "old_value": row.old_value,
-                "new_value": row.new_value,
-                "changed_at": row.changed_at.isoformat(),
-            }
-            for row in rows
-        ]
-    }
+    return {"edits": [
+        {
+            "id": row.id,
+            "work_date": row.work_date.isoformat() if row.work_date else None,
+            "field_name": row.field_name,
+            "old_value": row.old_value,
+            "new_value": row.new_value,
+            "changed_at": row.changed_at.isoformat(),
+        } for row in rows
+    ]}
