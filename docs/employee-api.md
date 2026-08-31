@@ -141,6 +141,10 @@ The API returns precomputed monthly totals:
 
 Mobile clients should use this object instead of implementing a different counting algorithm.
 
+## Web/mobile compatibility rule
+
+The employee website is one client of this API, not the source of schedule truth. Any future Android/iOS client should render the same `schedule_status`, `summary`, `shifts` and warning fields instead of re-creating schedule rules locally. This keeps the website and mobile app consistent after future backend changes.
+
 ## Mobile application guidance
 
 A future mobile app can reuse the API directly:
