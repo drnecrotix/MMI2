@@ -4,7 +4,6 @@ import unittest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.db import Base
 from app.main import admin_update_shift
 from app.models import Employee, ManualEditHistory, ShiftEntry
@@ -34,7 +33,7 @@ class ManualAdminEditTests(unittest.TestCase):
                 employee_id=employee.id,
                 work_date=date(2026, 9, 5),
                 payload=AdminShiftUpdate(raw_code="1"),
-                x_admin_key=settings.admin_import_key,
+                _admin="admin",
                 db=db,
             )
 
