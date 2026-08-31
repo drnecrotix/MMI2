@@ -33,7 +33,7 @@ class ManualAdminEditTests(unittest.TestCase):
                 employee_id=employee.id,
                 work_date=date(2026, 9, 5),
                 payload=AdminShiftUpdate(raw_code="1"),
-                _admin="admin",
+                _admin="test-admin",
                 db=db,
             )
 
@@ -48,6 +48,7 @@ class ManualAdminEditTests(unittest.TestCase):
             self.assertEqual(audit.field_name, "shift")
             self.assertEqual(audit.old_value, "rest|")
             self.assertEqual(audit.new_value, "day|1")
+            self.assertEqual(audit.changed_by, "test-admin")
 
 
 if __name__ == "__main__":

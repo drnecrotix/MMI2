@@ -51,13 +51,17 @@ Review every generated revision before committing it, especially SQLite batch op
 
 Do not add `Base.metadata.create_all()` back to application startup as a migration shortcut.
 
-## Current baseline
+## Revisions
 
-Revision: `20260831_0001`
+### `20260831_0001` - baseline
 
-It covers:
+Covers the initial Alembic-managed schema:
 
 - `employees`
 - `shift_entries`
 - `import_history`
 - `manual_edit_history`
+
+### `20260831_0002` - admin audit actor
+
+Adds nullable `manual_edit_history.changed_by` so new manual corrections record the authenticated admin username. Existing audit rows remain valid with a null actor.

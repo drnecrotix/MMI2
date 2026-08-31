@@ -57,4 +57,5 @@ class ManualEditHistory(Base):
     field_name: Mapped[str] = mapped_column(String(64), index=True)
     old_value: Mapped[str] = mapped_column(String(255), default="")
     new_value: Mapped[str] = mapped_column(String(255), default="")
+    changed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
