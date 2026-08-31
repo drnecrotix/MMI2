@@ -17,6 +17,10 @@ os.chdir(PROJECT_ROOT)
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ``setdefault`` is intentional: cPanel's passenger_wsgi.py sets its own
+# marker before importing this shared adapter.
+os.environ.setdefault("MMI2_HOSTING_PLATFORM", "n0c")
+
 from app.main import app as asgi_app  # noqa: E402
 
 
