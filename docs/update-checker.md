@@ -1,6 +1,6 @@
 # GitHub update checker
 
-MMI2 има read-only update checker в административния панел.
+MMI2 има update checker в административния панел и отделен safe self-update CLI за N0C/cPanel deployment.
 
 ## Какво се счита за update
 
@@ -27,6 +27,8 @@ Open, draft или затворен без merge PR не се предлага �
 
 `moderator` няма достъп до update проверката.
 
+Самото прилагане на update не се изпълнява вътре в активна HTTP заявка. За production се използва SSH/Terminal командата `update_mmi2.py`, която има backup и rollback защити.
+
 ## API
 
 ```text
@@ -47,8 +49,28 @@ GET /api/v1/admin/update/check?force=true
 
 Резултатът се кешира за 10 минути, за да не се изразходва ненужно unauthenticated GitHub API rate limit.
 
-## Какво не прави тази версия
+## Safe self-update
 
-Update checker-ът не презаписва автоматично production файловете. Той само открива наличен merge-нат PR и дава линк към него.
+Проверка от terminal:
 
-Това е умишлено за първата версия на update системата: автоматичното self-update при N0C/cPanel трябва да има отделен backup, file replacement и rollback механизъм, преди да бъде разрешено безопасно.
+```bash
+python update_mmi2.py check --force
+```
+
+Preflight на конкретен merge-нат PR:
+
+```bash
+python update_mmi2.py preflight 19
+```
+
+Прилагане след успешен preflight:
+
+```bash
+python update_mmi2.py apply 19 --yes
+```
+
+Подробната backup, migration и rollback логика е описана в:
+
+```text
+docs/self-update.md
+```
