@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from install.hosting import detect_hosting_runtime
 from install.service import (
     InstallRequest,
     InstallerError,
@@ -19,6 +20,16 @@ router = APIRouter(prefix="/install", tags=["installer"])
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
 
+def _template_context(state):
+    hosting = detect_hosting_runtime()
+    return {
+        "state": state,
+        "checks": system_checks(),
+        "hosting": hosting,
+        "restart_only": state.installed and state.restart_required,
+    }
+
+
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def installer_page(request: Request):
@@ -26,25 +37,19 @@ def installer_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={
-            "state": state,
-            "checks": system_checks(),
-            "restart_only": state.installed and state.restart_required,
-        },
+        context=_template_context(state),
     )
 
 
 @router.get("/restart", response_class=HTMLResponse)
 def installer_restart_page(request: Request):
     state = get_installation_state()
+    context = _template_context(state)
+    context["restart_only"] = True
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={
-            "state": state,
-            "checks": system_checks(),
-            "restart_only": True,
-        },
+        context=context,
     )
 
 
@@ -54,6 +59,7 @@ def installer_status():
     return {
         "installed": state.installed,
         "restart_required": state.restart_required,
+        "hosting": detect_hosting_runtime().as_dict(),
         "checks": system_checks(),
     }
 
@@ -72,6 +78,10 @@ def installer_database_check(payload: DatabaseSetup):
 @router.post("/api/complete")
 def installer_complete(payload: InstallRequest):
     try:
-        return complete_installation(payload)
+        result = complete_installation(payload)
+        hosting = detect_hosting_runtime()
+        result["hosting"] = hosting.as_dict()
+        result["message"] = f"Инсталацията е завършена. {hosting.restart_instruction}"
+        return result
     except InstallerError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
