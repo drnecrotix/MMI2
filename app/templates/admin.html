@@ -41,7 +41,7 @@
   </div>
 </section>
 
-<section id="historyPanel" class="card hidden"><h2>История</h2><div class="wrap"><table><thead><tr><th>Дата</th><th>Период</th><th>Файл</th><th>Служители</th><th>Записи</th><th>Повторения</th><th>Конфликти</th></tr></thead><tbody id="historyRows"></tbody></table></div></section>
+<section id="historyPanel" class="card hidden"><h2>История</h2><div class="wrap"><table><thead><tr><th>Дата</th><th>Период</th><th>Файл</th><th>Импортирал</th><th>Служители</th><th>Записи</th><th>Повторения</th><th>Конфликти</th></tr></thead><tbody id="historyRows"></tbody></table></div></section>
 
 <script>
 const STORAGE='mmi2_admin_token';let previewSignature=null;let currentRole=null;let lastComparison=null;
@@ -99,7 +99,7 @@ function renderChangeDetails(){
 }
 
 async function confirmImport(){if(previewSignature!==sig()){invalidate();status.textContent='Направи preview отново.';return}const c=lastComparison||{};const count=c.total_changes??0;const message=c.database_has_period?`Да се приложат ли ${count} отчетени промени към графика?`:`Да се запише ли първият импорт за този период (${c.new_days||0} дневни записа)?`;if(!confirm(message))return;try{const r=await fetch('/api/v1/admin/import',{method:'POST',headers:auth(),body:fd()});if(unauthorized(r))return;const d=await r.json();if(!r.ok)throw new Error(d.detail||'Грешка');status.className='status ok';status.textContent=`Импорт #${d.import_id} успешен - ${d.employees} служители.`;invalidate();if(currentRole!=='moderator')loadHistory()}catch(e){status.className='status warn';status.textContent=e.message}}
-async function loadHistory(){if(currentRole==='moderator')return;const r=await fetch('/api/v1/admin/imports',{headers:auth()});if(unauthorized(r))return;const d=await r.json();if(!r.ok){status.textContent=d.detail||'Грешка';return}historyPanel.classList.remove('hidden');historyRows.innerHTML=(d.imports||[]).map(x=>`<tr><td>${new Date(x.imported_at).toLocaleString('bg-BG')}</td><td>${String(x.month).padStart(2,'0')}.${x.year}</td><td>${esc(x.filename)}</td><td>${x.employees}</td><td>${x.shifts}</td><td>${x.duplicate_employee_rows}</td><td>${x.conflicting_days}</td></tr>`).join('')}
+async function loadHistory(){if(currentRole==='moderator')return;const r=await fetch('/api/v1/admin/imports',{headers:auth()});if(unauthorized(r))return;const d=await r.json();if(!r.ok){status.textContent=d.detail||'Грешка';return}historyPanel.classList.remove('hidden');historyRows.innerHTML=(d.imports||[]).map(x=>`<tr><td>${new Date(x.imported_at).toLocaleString('bg-BG')}</td><td>${String(x.month).padStart(2,'0')}.${x.year}</td><td>${esc(x.filename)}</td><td>${esc(x.imported_by||'стар запис')}</td><td>${x.employees}</td><td>${x.shifts}</td><td>${x.duplicate_employee_rows}</td><td>${x.conflicting_days}</td></tr>`).join('')}
 guard();
 </script>
 </main></body></html>
