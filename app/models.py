@@ -45,6 +45,7 @@ class ImportHistory(Base):
     schedule_blocks: Mapped[int] = mapped_column(Integer, default=0)
     duplicate_employee_rows: Mapped[int] = mapped_column(Integer, default=0)
     conflicting_days: Mapped[int] = mapped_column(Integer, default=0)
+    imported_by: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
