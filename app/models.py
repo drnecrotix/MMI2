@@ -52,7 +52,7 @@ class AdminUser(Base):
     __tablename__ = "admin_users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(32), default="admin", index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
@@ -69,5 +69,5 @@ class ManualEditHistory(Base):
     field_name: Mapped[str] = mapped_column(String(64), index=True)
     old_value: Mapped[str] = mapped_column(String(255), default="")
     new_value: Mapped[str] = mapped_column(String(255), default="")
-    changed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    changed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
