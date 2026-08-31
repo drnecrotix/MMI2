@@ -3,7 +3,7 @@ from datetime import date
 from hashlib import sha256
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
@@ -38,15 +38,52 @@ from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
 from app.services.schedule_compare import compare_preview_to_database
 from app.services.schedule_fallback import generate_2x2_fallback
+from install.router import router as installer_router
+from install.service import get_installation_state
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.11.0",
+    version="0.12.0",
     description="MMI2 monthly work schedule import and employee API",
 )
+app.include_router(installer_router)
 templates = Jinja2Templates(directory="app/templates")
 bearer = HTTPBearer(auto_error=False)
 TEAM_CODES = {"А", "Б", "В", "Г"}
+
+
+@app.middleware("http")
+async def installation_gate(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/install") or path == "/health":
+        return await call_next(request)
+
+    state = get_installation_state()
+    if not state.installed:
+        if request.method == "GET" and not path.startswith("/api/"):
+            return RedirectResponse(url="/install", status_code=303)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "MMI2 още не е инсталиран.",
+                "install_required": True,
+                "install_url": "/install",
+            },
+        )
+
+    if state.restart_required:
+        if request.method == "GET" and not path.startswith("/api/"):
+            return RedirectResponse(url="/install/restart", status_code=303)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "Инсталацията е завършена, но приложението трябва да бъде рестартирано.",
+                "restart_required": True,
+                "install_url": "/install/restart",
+            },
+        )
+
+    return await call_next(request)
 
 
 def current_employee(
