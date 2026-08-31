@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db import Base
 from app.main import admin_update_shift
-from app.models import Employee, ManualEditHistory, ShiftEntry
+from app.models import AdminUser, Employee, ManualEditHistory, ShiftEntry
 from app.schemas import AdminShiftUpdate
 
 
@@ -18,7 +18,13 @@ class ManualAdminEditTests(unittest.TestCase):
     def test_manual_shift_edit_updates_schedule_and_creates_audit_row(self):
         with Session(self.engine) as db:
             employee = Employee(work_number="1234", full_name="Тест Служител", team="А")
-            db.add(employee)
+            actor = AdminUser(
+                email="moderator@example.com",
+                password_hash="test-hash",
+                role="moderator",
+                is_active=True,
+            )
+            db.add_all([employee, actor])
             db.flush()
             db.add(ShiftEntry(
                 employee_id=employee.id,
@@ -33,7 +39,7 @@ class ManualAdminEditTests(unittest.TestCase):
                 employee_id=employee.id,
                 work_date=date(2026, 9, 5),
                 payload=AdminShiftUpdate(raw_code="1"),
-                _admin="test-admin",
+                account=actor,
                 db=db,
             )
 
@@ -48,7 +54,7 @@ class ManualAdminEditTests(unittest.TestCase):
             self.assertEqual(audit.field_name, "shift")
             self.assertEqual(audit.old_value, "rest|")
             self.assertEqual(audit.new_value, "day|1")
-            self.assertEqual(audit.changed_by, "test-admin")
+            self.assertEqual(audit.changed_by, "moderator@example.com")
 
 
 if __name__ == "__main__":
