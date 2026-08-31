@@ -33,12 +33,13 @@ from app.services.excel_import import _shift_type, import_schedule_xlsx
 from app.services.excel_period import detect_schedule_period
 from app.services.excel_preview import preview_schedule_xlsx
 from app.services.schedule_compare import compare_preview_to_database
+from app.services.schedule_fallback import generate_2x2_fallback
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.8.0",
+    version="0.9.0",
     description="MMI2 monthly work schedule import and employee API",
 )
 templates = Jinja2Templates(directory="app/templates")
@@ -158,7 +159,7 @@ def my_schedule(
     employee: Employee = Depends(current_employee),
     db: Session = Depends(get_db),
 ):
-    if month < 1 or month > 12:
+    if not 2020 <= year <= 2100 or month < 1 or month > 12:
         raise HTTPException(status_code=400, detail="Невалиден месец.")
     first = date(year, month, 1)
     last = date(year, month, monthrange(year, month)[1])
@@ -167,13 +168,53 @@ def my_schedule(
         .where(ShiftEntry.employee_id == employee.id, ShiftEntry.work_date >= first, ShiftEntry.work_date <= last)
         .order_by(ShiftEntry.work_date)
     ).all()
+
+    if entries:
+        return MonthlyScheduleOut(
+            employee_name=employee.full_name,
+            work_number=employee.work_number,
+            team=employee.team,
+            year=year,
+            month=month,
+            schedule_source="imported",
+            is_estimated=False,
+            shifts=[
+                ShiftOut(
+                    work_date=e.work_date,
+                    shift_type=e.shift_type,
+                    raw_code=e.raw_code,
+                    estimated=False,
+                )
+                for e in entries
+            ],
+        )
+
+    fallback = generate_2x2_fallback(db, employee, year, month)
+    warning = (
+        "Графикът за този месец още не е обновен. Показан е автоматично изчислен режим 2 на 2 "
+        "(2 работни / 2 почивни дни). Той е ориентировъчен и може да се различава от официалния график."
+    )
     return MonthlyScheduleOut(
         employee_name=employee.full_name,
         work_number=employee.work_number,
         team=employee.team,
         year=year,
         month=month,
-        shifts=[ShiftOut(work_date=e.work_date, shift_type=e.shift_type, raw_code=e.raw_code) for e in entries],
+        schedule_source="automatic_2x2",
+        is_estimated=True,
+        warning=warning,
+        fallback_confidence=fallback.confidence,
+        fallback_basis=fallback.basis,
+        fallback_reference_date=fallback.reference_date,
+        shifts=[
+            ShiftOut(
+                work_date=e.work_date,
+                shift_type=e.shift_type,
+                raw_code=e.raw_code,
+                estimated=True,
+            )
+            for e in fallback.shifts
+        ],
     )
 
 
