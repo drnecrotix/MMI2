@@ -17,7 +17,23 @@ def _has_table(name: str) -> bool:
     return sa.inspect(op.get_bind()).has_table(name)
 
 
+def _column_length(table: str, column: str) -> int | None:
+    for item in sa.inspect(op.get_bind()).get_columns(table):
+        if item["name"] == column:
+            return getattr(item["type"], "length", None)
+    return None
+
+
 def upgrade() -> None:
+    if _has_table("manual_edit_history") and _column_length("manual_edit_history", "changed_by") != 255:
+        with op.batch_alter_table("manual_edit_history") as batch_op:
+            batch_op.alter_column(
+                "changed_by",
+                existing_type=sa.String(length=64),
+                type_=sa.String(length=255),
+                existing_nullable=True,
+            )
+
     if not _has_table("admin_users"):
         op.create_table(
             "admin_users",
@@ -41,3 +57,12 @@ def downgrade() -> None:
         op.drop_index("ix_admin_users_role", table_name="admin_users")
         op.drop_index("ix_admin_users_email", table_name="admin_users")
         op.drop_table("admin_users")
+
+    if _has_table("manual_edit_history") and _column_length("manual_edit_history", "changed_by") == 255:
+        with op.batch_alter_table("manual_edit_history") as batch_op:
+            batch_op.alter_column(
+                "changed_by",
+                existing_type=sa.String(length=255),
+                type_=sa.String(length=64),
+                existing_nullable=True,
+            )
