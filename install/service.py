@@ -66,7 +66,7 @@ def _digest(value: str) -> str:
 
 def _write_json_atomic(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     temporary.replace(path)
 
@@ -136,6 +136,8 @@ def get_installation_state() -> InstallationState:
 
 
 def system_checks() -> list[dict]:
+    env_target = ENV_FILE if ENV_FILE.exists() else ENV_FILE.parent
+    lock_target = LOCK_FILE if LOCK_FILE.exists() else LOCK_FILE.parent
     checks = [
         {
             "name": "Python 3.11+",
@@ -149,13 +151,13 @@ def system_checks() -> list[dict]:
         },
         {
             "name": "Запис на .env",
-            "ok": os.access(ENV_FILE if ENV_FILE.exists() else PROJECT_ROOT, os.W_OK),
+            "ok": os.access(env_target, os.W_OK),
             "detail": str(ENV_FILE),
         },
         {
             "name": "Запис на install lock",
-            "ok": os.access(INSTALL_DIR, os.W_OK),
-            "detail": str(INSTALL_DIR),
+            "ok": os.access(lock_target, os.W_OK),
+            "detail": str(LOCK_FILE),
         },
     ]
     return checks
@@ -263,7 +265,7 @@ def _write_environment(values: dict[str, str], remove_keys: set[str]) -> None:
         if key not in seen:
             output.append(f"{key}={_dotenv_quote(value)}")
 
-    temporary = ENV_FILE.with_suffix(".env.tmp")
+    temporary = ENV_FILE.with_name(ENV_FILE.name + ".tmp")
     temporary.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
     temporary.replace(ENV_FILE)
 
