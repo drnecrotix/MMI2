@@ -22,14 +22,14 @@ EXPECTED_TABLES = {
 
 
 class MigrationTests(unittest.TestCase):
-    def _upgrade(self, database_url: str) -> None:
+    def _alembic(self, database_url: str, target: str = "head") -> None:
         env = os.environ.copy()
         env["DATABASE_URL"] = database_url
         env["JWT_SECRET"] = "migration-test-secret"
         env["ADMIN_USERNAME"] = "test-admin"
         env["ADMIN_PASSWORD"] = "test-admin-password"
         subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", target],
             check=True,
             env=env,
             capture_output=True,
@@ -40,10 +40,13 @@ class MigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             db_path = Path(tmp) / "fresh.db"
             url = "sqlite:///" + db_path.as_posix()
-            self._upgrade(url)
+            self._alembic(url)
 
             engine = create_engine(url)
-            self.assertTrue(EXPECTED_TABLES.issubset(set(inspect(engine).get_table_names())))
+            inspector = inspect(engine)
+            self.assertTrue(EXPECTED_TABLES.issubset(set(inspector.get_table_names())))
+            columns = {item["name"] for item in inspector.get_columns("manual_edit_history")}
+            self.assertIn("changed_by", columns)
 
     def test_upgrade_adopts_existing_metadata_database_without_data_loss(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -56,13 +59,31 @@ class MigrationTests(unittest.TestCase):
                 db.add(Employee(work_number="1234", full_name="Тест Служител", team="А"))
                 db.commit()
 
-            self._upgrade(url)
+            self._alembic(url)
 
-            self.assertIn("alembic_version", inspect(engine).get_table_names())
+            inspector = inspect(engine)
+            self.assertIn("alembic_version", inspector.get_table_names())
+            columns = {item["name"] for item in inspector.get_columns("manual_edit_history")}
+            self.assertIn("changed_by", columns)
             with Session(engine) as db:
                 employee = db.scalar(select(Employee).where(Employee.work_number == "1234"))
                 self.assertIsNotNone(employee)
                 self.assertEqual(employee.full_name, "Тест Служител")
+
+    def test_upgrade_from_baseline_adds_changed_by_column(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "baseline.db"
+            url = "sqlite:///" + db_path.as_posix()
+            self._alembic(url, "20260831_0001")
+
+            engine = create_engine(url)
+            columns_before = {item["name"] for item in inspect(engine).get_columns("manual_edit_history")}
+            self.assertNotIn("changed_by", columns_before)
+
+            self._alembic(url)
+
+            columns_after = {item["name"] for item in inspect(engine).get_columns("manual_edit_history")}
+            self.assertIn("changed_by", columns_after)
 
 
 if __name__ == "__main__":
