@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, event
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.db import Base
 
@@ -72,3 +72,13 @@ class ManualEditHistory(Base):
     new_value: Mapped[str] = mapped_column(String(255), default="")
     changed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+@event.listens_for(Session, "before_flush")
+def _attach_import_actor(session: Session, _flush_context, _instances) -> None:
+    actor = session.info.get("admin_actor")
+    if not actor:
+        return
+    for item in session.new:
+        if isinstance(item, ImportHistory) and not item.imported_by:
+            item.imported_by = str(actor)
