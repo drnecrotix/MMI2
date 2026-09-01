@@ -1,173 +1,192 @@
 <!doctype html>
 <html lang="bg">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ app_name }}</title>
-  <style>
-    :root{
-      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      color-scheme:dark;
-      --bg:#08101d;--panel:#101a2b;--border:#263750;--text:#eef5ff;--muted:#93a5bd;--accent:#4f7cff;
-      --day:#f2b84b;--night:#6ea8ff;--leave:#b987ff;--sick:#ff6f7d;--rest:#6f8096;--unknown:#ff995e;
-      --pred-work:#67d4a6;--pred-rest:#8290a4;--warning:#f5c86a;
-    }
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#12213a 0,#08101d 42%);color:var(--text)}
-    button,input{font:inherit}button{cursor:pointer}main{width:min(1180px,100%);margin:auto;padding:28px 18px 50px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:26px}.brand h1{font-size:clamp(24px,5vw,36px);margin:0;letter-spacing:-.03em}.brand p{margin:5px 0 0;color:var(--muted)}
-    .card{background:rgba(16,26,43,.94);border:1px solid var(--border);border-radius:22px;box-shadow:0 20px 60px #0006}.hidden{display:none!important}
-    .login{max-width:520px;margin:8vh auto 0;padding:30px}.login h2{margin:0 0 8px}.login p{color:var(--muted);margin:0 0 22px}
-    label{display:block;color:var(--muted);font-size:13px;font-weight:700;margin-bottom:7px}input{width:100%;border:1px solid #32445f;background:#091321;color:#fff;border-radius:13px;padding:14px 15px;outline:none}input:focus{border-color:#6e92ff;box-shadow:0 0 0 3px #4f7cff22}
-    .primary{width:100%;margin-top:12px;border:0;border-radius:13px;padding:14px 16px;background:var(--accent);color:#fff;font-weight:800}.message{min-height:22px;color:#ff9ca7;margin:12px 0 0;font-size:14px}
-    .dashboard{display:grid;gap:18px}.profile{padding:20px 22px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}.profile-name{font-size:22px;font-weight:850}.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #32445f;background:#0b1525;border-radius:999px;padding:7px 10px;color:#bdcbe0;font-size:13px}.team{color:#fff;font-weight:850}.logout{width:auto;border:1px solid #3a4a62;background:transparent;color:#cad6e8;padding:10px 14px;border-radius:11px}
-    .calendar-card{padding:18px}.calendar-head{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;gap:10px;margin-bottom:16px}.nav{border:1px solid #31435d;background:#0b1525;color:#fff;border-radius:11px;height:42px;font-size:20px}#monthTitle{text-align:center;font-size:21px;font-weight:850;text-transform:capitalize}
-    .notice{display:flex;gap:12px;align-items:flex-start;border:1px solid #846a2c;background:#2b2414;border-radius:14px;padding:13px 15px;margin:0 0 16px;color:#f4dfaa}.notice strong{display:block;color:#ffe6a0;margin-bottom:3px}.notice small{display:block;color:#cdbd94;margin-top:5px}.notice-icon{font-size:20px;line-height:1.2}
-    .weekdays,.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.weekday{text-align:center;padding:5px 0 8px;color:#8193ac;font-size:12px;font-weight:800}
-    .day{position:relative;min-height:108px;border:1px solid #283a54;border-radius:14px;background:#0a1423;padding:10px;overflow:hidden}.day.empty{background:transparent;border-color:transparent}.day.today{outline:2px solid #fff8;outline-offset:1px}.date{font-size:13px;color:#8fa1ba;font-weight:800}.shift-code{font-size:27px;font-weight:900;line-height:1;margin-top:13px}.shift-label{margin-top:7px;font-size:12px;font-weight:750;color:#cbd6e5}
-    .type-day{border-color:#f2b84b77;background:#2a2113}.type-day .shift-code{color:var(--day)}.type-night{border-color:#6ea8ff77;background:#101d31}.type-night .shift-code{color:var(--night)}.type-leave{border-color:#b987ff77;background:#20162e}.type-leave .shift-code{color:var(--leave)}.type-sick_leave{border-color:#ff6f7d77;background:#2b151b}.type-sick_leave .shift-code{color:var(--sick)}.type-rest{opacity:.72}.type-rest .shift-code{color:var(--rest);font-size:22px}.type-unknown{border-color:#ff995e77}.type-unknown .shift-code{color:var(--unknown)}
-    .type-predicted_work{border:1px dashed #67d4a699;background:#10251f}.type-predicted_work .shift-code{color:var(--pred-work)}.type-predicted_rest{border:1px dashed #8290a477;background:#111923;opacity:.82}.type-predicted_rest .shift-code{color:var(--pred-rest);font-size:22px}.type-missing{border-style:dashed;opacity:.55}.type-missing .shift-code{color:var(--muted);font-size:18px}
-    .estimated-tag{position:absolute;top:8px;right:8px;font-size:9px;font-weight:850;letter-spacing:.05em;color:#a9e4cc;background:#17352c;border:1px solid #2e6f59;border-radius:999px;padding:3px 5px}
-    .legend{display:flex;flex-wrap:wrap;gap:10px 14px;margin:18px 0 4px}.legend span{display:inline-flex;gap:7px;align-items:center;color:#b7c5d9;font-size:12px}.dot{width:9px;height:9px;border-radius:50%;background:currentColor}.legend-estimated{border-left:1px solid #394960;padding-left:14px}
-    .summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:18px}.stat{background:#0a1423;border:1px solid #263750;padding:12px;border-radius:13px;text-align:center}.stat strong{display:block;font-size:20px}.stat small{color:#8da0ba}.source-note{margin-top:12px;color:#7f92ab;font-size:12px;text-align:right}
-    @media(max-width:700px){main{padding:18px 10px 35px}.topbar{margin-bottom:16px}.calendar-card{padding:11px}.weekdays,.calendar{gap:4px}.day{min-height:82px;padding:7px;border-radius:10px}.shift-code{font-size:21px;margin-top:9px}.shift-label{display:none}.estimated-tag{display:none}.summary{grid-template-columns:repeat(2,1fr)}.weekday{font-size:10px}.profile{padding:16px}.notice{font-size:13px}}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>{{ app_name }}</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;--bg:#07111f;--panel:#0e1a2b;--panel2:#111f33;--border:#253851;--text:#f2f7ff;--muted:#91a4bd;--accent:#5f83ff;--accent2:#83a2ff;--day:#f1bd58;--night:#76aaff;--leave:#bc8cff;--sick:#ff7f8d;--rest:#7f91a9;--unknown:#ff9b63;--work:#64d5a5;--warn:#ffd37b;--danger:#ff8d98;--ok:#8ae0a4}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text)}body{min-height:100vh;background:radial-gradient(circle at 50% -10%,#18345a 0,#0b1829 27%,var(--bg) 58%)}button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}.hidden{display:none!important}
+.shell{width:min(1180px,100%);margin:auto;padding:22px 16px 52px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}.brand-mark{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:linear-gradient(145deg,#6d8cff,#3d61d8);font-weight:950;box-shadow:0 12px 34px #294fa855}.brand-copy strong{display:block;font-size:17px}.brand-copy span{display:block;margin-top:2px;color:var(--muted);font-size:12px}.card{background:linear-gradient(180deg,#101e31f5,#0d1929f5);border:1px solid var(--border);border-radius:22px;box-shadow:0 22px 70px #0006}.login-layout{min-height:calc(100vh - 110px);display:grid;place-items:center}.login-card{width:min(520px,100%);padding:30px}.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#91aaff;font-weight:850}.login-card h1{font-size:clamp(28px,7vw,42px);line-height:1.05;letter-spacing:-.04em;margin:10px 0 12px}.login-card p{color:var(--muted);line-height:1.55;margin:0 0 24px}.field-label{display:block;font-size:12px;color:#a8b7cb;font-weight:800;margin:0 0 7px}input{width:100%;border:1px solid #344a67;background:#081523;color:#fff;padding:14px 15px;border-radius:13px;outline:none}input:focus{border-color:#7795ff;box-shadow:0 0 0 3px #5f83ff22}.primary{width:100%;border:0;border-radius:13px;padding:14px 16px;background:linear-gradient(135deg,#6688ff,#496adf);color:#fff;font-weight:850;margin-top:11px}.message{min-height:20px;margin-top:10px;color:#ffa0aa;font-size:13px}.privacy-note{margin-top:20px;padding-top:15px;border-top:1px solid #22364e;color:#7488a2;font-size:11px;line-height:1.5}
+.dashboard{display:grid;gap:16px}.topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.employee h1{font-size:clamp(25px,5vw,36px);letter-spacing:-.03em;margin:0}.employee-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.pill,.status-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #304762;background:#0b1727;border-radius:999px;padding:7px 10px;color:#b8c7da;font-size:12px}.status-pill{font-weight:800}.status-pill.official{border-color:#386447;color:#9de1ad;background:#102619}.status-pill.partial{border-color:#876936;color:#ffd695;background:#2b2212}.status-pill.estimated{border-color:#3c6f61;color:#a5ead2;background:#102821}.logout{border:1px solid #354a65;background:#0c1828;color:#cdd9e8;border-radius:11px;padding:10px 13px}
+.hero-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}.hero-card{padding:18px;min-height:120px}.hero-card .label{color:#8da2bc;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:850}.hero-card .value{font-size:22px;font-weight:900;margin-top:9px}.hero-card .sub{color:#8396ae;font-size:12px;margin-top:7px;line-height:1.4}.today-card{background:linear-gradient(145deg,#13233a,#10213a);border-color:#385373}.today-code{display:inline-flex;align-items:center;justify-content:center;min-width:45px;height:45px;padding:0 10px;margin-top:9px;border-radius:12px;background:#091625;border:1px solid #36506f;font-size:22px;font-weight:950}.source-card .value{font-size:17px}
+.notice{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:15px;border:1px solid #795f32;background:#2b2214;color:#f7dfaa}.notice.partial{border-color:#765735;background:#281b12}.notice-icon{font-size:19px}.notice strong{display:block;color:#ffe7a9;margin-bottom:4px}.notice span{font-size:13px;line-height:1.5}.notice small{display:block;color:#c9b98e;margin-top:5px}
+.calendar-card{padding:18px}.calendar-head{display:grid;grid-template-columns:46px minmax(0,1fr) 46px;align-items:center;gap:10px}.nav{height:42px;border:1px solid #314963;background:#0a1726;color:#fff;border-radius:11px;font-size:21px}.month-center{text-align:center}.month-title{font-size:20px;font-weight:900;text-transform:capitalize}.month-sub{font-size:11px;color:#8094ad;margin-top:3px}.weekdays,.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.weekdays{margin-top:17px}.weekday{text-align:center;color:#758aa5;font-size:10px;font-weight:850;padding:4px}.calendar{margin-top:4px}.day{position:relative;min-height:105px;text-align:left;border:1px solid #283d57;border-radius:14px;background:#091625;color:#fff;padding:10px;overflow:hidden;transition:.16s transform,.16s border-color}.day:not(.empty):hover{transform:translateY(-1px);border-color:#527098}.day.empty{background:transparent;border-color:transparent;cursor:default}.day.today{outline:2px solid #91a8ff;outline-offset:1px}.day.selected{box-shadow:0 0 0 2px #6688ff88 inset}.date-num{font-size:12px;color:#8ea2bc;font-weight:850}.code{font-size:26px;font-weight:950;line-height:1;margin-top:13px}.shift-label{font-size:11px;color:#c3d0e0;font-weight:750;margin-top:7px}.estimated-tag{position:absolute;right:7px;top:7px;font-size:8px;letter-spacing:.06em;font-weight:900;border-radius:999px;padding:3px 5px;border:1px solid #2e6b58;color:#a6e8cf;background:#163329}.type-day{background:#2a2112;border-color:#80632f}.type-day .code{color:var(--day)}.type-night{background:#101e32;border-color:#375d8f}.type-night .code{color:var(--night)}.type-leave{background:#20172e;border-color:#654889}.type-leave .code{color:var(--leave)}.type-sick_leave{background:#2a161b;border-color:#7c3f48}.type-sick_leave .code{color:var(--sick)}.type-rest{opacity:.76}.type-rest .code{color:var(--rest);font-size:20px}.type-unknown{border-color:#8b5936}.type-unknown .code{color:var(--unknown)}.type-predicted_work{border-style:dashed;border-color:#3f7b66;background:#10251f}.type-predicted_work .code{color:var(--work)}.type-predicted_rest{border-style:dashed;opacity:.82}.type-predicted_rest .code{color:#8392a7;font-size:20px}.type-missing{border-style:dashed;opacity:.58}.type-missing .code{font-size:18px;color:#8294aa}
+.detail-panel{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:15px 17px;margin-top:14px;border:1px solid #2c425d;border-radius:15px;background:#0a1727}.detail-main strong{font-size:15px}.detail-main p{margin:5px 0 0;color:#93a6bd;font-size:12px}.detail-code{font-size:24px;font-weight:950;color:#cbd7e8}.legend{display:flex;gap:10px 14px;flex-wrap:wrap;margin-top:15px}.legend span{display:inline-flex;gap:6px;align-items:center;color:#9fb0c5;font-size:11px}.dot{width:8px;height:8px;border-radius:50%;background:currentColor}.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:15px}.stat{border:1px solid #283d57;background:#091625;border-radius:13px;padding:11px;text-align:center}.stat strong{display:block;font-size:19px}.stat small{display:block;margin-top:3px;color:#8397b0;font-size:10px}.source-note{text-align:right;color:#7489a4;font-size:11px;margin-top:11px}.loading{opacity:.55;pointer-events:none}
+@media(max-width:820px){.hero-grid{grid-template-columns:1fr 1fr}.today-card{grid-column:1/-1}.summary{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:620px){.shell{padding:15px 9px 35px}.brand{margin-left:5px}.login-card{padding:24px 19px}.topbar{padding:0 5px}.hero-grid{grid-template-columns:1fr 1fr;gap:8px}.hero-card{padding:14px;min-height:106px}.today-card{grid-column:1/-1}.hero-card .value{font-size:18px}.calendar-card{padding:10px}.weekdays,.calendar{gap:4px}.day{min-height:72px;border-radius:10px;padding:7px}.date-num{font-size:10px}.code{font-size:19px;margin-top:8px}.shift-label,.estimated-tag{display:none}.month-title{font-size:17px}.summary{grid-template-columns:repeat(2,1fr)}.legend{padding:0 4px}.detail-panel{margin:10px 2px 0}.source-note{text-align:left;padding:0 3px}.logout{padding:9px 10px}.employee h1{font-size:23px}.employee-meta{gap:5px}.pill,.status-pill{padding:6px 8px;font-size:10px}}
+</style>
 </head>
 <body>
-<main>
-  <div class="topbar"><div class="brand"><h1>MMI2 График</h1><p>Персонален месечен работен календар</p></div></div>
+<div class="shell">
+  <div class="brand"><div class="brand-mark">M2</div><div class="brand-copy"><strong>MMI2 График</strong><span>Персонален работен календар</span></div></div>
 
-  <section id="loginView" class="card login">
-    <h2>Виж своя график</h2>
-    <p>Въведи работния си номер. Ще бъдат показани само данните за твоя график.</p>
-    <label for="workNumber">Работен номер</label>
-    <input id="workNumber" inputmode="numeric" autocomplete="off" placeholder="Напр. 12345">
-    <button class="primary" id="loginButton" onclick="loginAndLoad()">Вход</button>
-    <div id="loginMessage" class="message"></div>
+  <section id="loginView" class="login-layout">
+    <div class="card login-card">
+      <div class="eyebrow">Служителски достъп</div>
+      <h1>Твоят график, без търсене в таблици.</h1>
+      <p>Въведи работния си номер, за да видиш персоналния си месечен график, смяната и актуалния статус на данните.</p>
+      <label class="field-label" for="workNumber">Работен номер</label>
+      <input id="workNumber" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Въведи работен номер">
+      <button id="loginButton" class="primary" type="button">Покажи графика</button>
+      <div id="loginMessage" class="message" aria-live="polite"></div>
+      <div class="privacy-note">Достъпът в тази версия е чрез работен номер. Не споделяй чужд работен номер и използвай системата само за служебния график, за който имаш право на достъп.</div>
+    </div>
   </section>
 
-  <div id="scheduleView" class="dashboard hidden">
-    <section class="card profile">
-      <div>
-        <div id="employeeName" class="profile-name"></div>
-        <div class="meta">
-          <span class="pill">Раб. № <strong id="employeeNumber"></strong></span>
-          <span class="pill">Смяна <strong id="employeeTeam" class="team">-</strong></span>
-        </div>
-      </div>
-      <button class="logout" onclick="logout()">Изход</button>
+  <main id="scheduleView" class="dashboard hidden">
+    <header class="topbar">
+      <div class="employee"><h1 id="employeeName">—</h1><div class="employee-meta"><span class="pill">Раб. № <strong id="employeeNumber">—</strong></span><span class="pill">Смяна <strong id="employeeTeam">—</strong></span><span id="scheduleStatus" class="status-pill official">Официален</span></div></div>
+      <button id="logoutButton" class="logout" type="button">Изход</button>
+    </header>
+
+    <section class="hero-grid">
+      <article class="card hero-card today-card"><div class="label">Днес</div><div id="todayValue" class="today-code">—</div><div id="todayLabel" class="value">Няма данни</div><div id="todaySub" class="sub"></div></article>
+      <article class="card hero-card"><div class="label">Следваща работа</div><div id="nextWorkValue" class="value">—</div><div id="nextWorkSub" class="sub">Няма намерена предстояща работна смяна.</div></article>
+      <article class="card hero-card source-card"><div class="label">Източник</div><div id="sourceValue" class="value">—</div><div id="sourceSub" class="sub"></div></article>
     </section>
 
-    <section class="card calendar-card">
-      <div class="calendar-head">
-        <button class="nav" aria-label="Предишен месец" onclick="changeMonth(-1)">‹</button>
-        <div id="monthTitle"></div>
-        <button class="nav" aria-label="Следващ месец" onclick="changeMonth(1)">›</button>
-      </div>
+    <section id="scheduleNotice" class="notice hidden"><div class="notice-icon">⚠</div><div><strong id="noticeTitle">Важно за този график</strong><span id="noticeText"></span><small id="noticeMeta"></small></div></section>
 
-      <div id="scheduleNotice" class="notice hidden">
-        <div class="notice-icon">⚠</div>
-        <div><strong>Графикът не е обновен</strong><span id="noticeText"></span><small id="noticeMeta"></small></div>
-      </div>
-
-      <div class="weekdays">
-        <div class="weekday">ПОН</div><div class="weekday">ВТО</div><div class="weekday">СРЯ</div><div class="weekday">ЧЕТ</div><div class="weekday">ПЕТ</div><div class="weekday">СЪБ</div><div class="weekday">НЕД</div>
-      </div>
-      <div id="calendar" class="calendar"></div>
-
-      <div class="legend">
-        <span style="color:var(--day)"><i class="dot"></i>Дневна</span>
-        <span style="color:var(--night)"><i class="dot"></i>Нощна</span>
-        <span style="color:var(--leave)"><i class="dot"></i>Отпуск</span>
-        <span style="color:var(--sick)"><i class="dot"></i>Болничен</span>
-        <span style="color:var(--rest)"><i class="dot"></i>Почивка</span>
-        <span id="estimatedLegend" class="legend-estimated hidden" style="color:var(--pred-work)"><i class="dot"></i>Прогнозен 2×2</span>
-      </div>
+    <section id="calendarCard" class="card calendar-card">
+      <div class="calendar-head"><button id="prevMonth" class="nav" type="button" aria-label="Предишен месец">‹</button><div class="month-center"><div id="monthTitle" class="month-title">—</div><div id="monthSub" class="month-sub"></div></div><button id="nextMonth" class="nav" type="button" aria-label="Следващ месец">›</button></div>
+      <div class="weekdays"><div class="weekday">ПОН</div><div class="weekday">ВТО</div><div class="weekday">СРЯ</div><div class="weekday">ЧЕТ</div><div class="weekday">ПЕТ</div><div class="weekday">СЪБ</div><div class="weekday">НЕД</div></div>
+      <div id="calendar" class="calendar" aria-label="Месечен график"></div>
+      <div id="dayDetail" class="detail-panel hidden"><div class="detail-main"><strong id="dayDetailTitle">—</strong><p id="dayDetailText"></p></div><div id="dayDetailCode" class="detail-code">—</div></div>
+      <div class="legend"><span style="color:var(--day)"><i class="dot"></i>Дневна</span><span style="color:var(--night)"><i class="dot"></i>Нощна</span><span style="color:var(--leave)"><i class="dot"></i>Отпуск</span><span style="color:var(--sick)"><i class="dot"></i>Болничен</span><span style="color:var(--rest)"><i class="dot"></i>Почивка</span><span style="color:var(--work)"><i class="dot"></i>Прогноза</span></div>
       <div id="summary" class="summary"></div>
       <div id="sourceNote" class="source-note"></div>
     </section>
-  </div>
-</main>
+  </main>
+</div>
 <script>
+const TOKEN_KEY='mmi2_employee_token';
 const now=new Date();
-let token=null;
+let accessToken=sessionStorage.getItem(TOKEN_KEY)||null;
 let currentYear=now.getFullYear();
 let currentMonth=now.getMonth()+1;
+let currentSchedule=null;
 
-document.getElementById('workNumber').addEventListener('keydown',e=>{if(e.key==='Enter')loginAndLoad();});
-
-const labels={
-  day:'Дневна смяна',night:'Нощна смяна',leave:'Отпуск',sick_leave:'Болничен',rest:'Почивка',unknown:'Неизвестен код',
-  predicted_work:'Работа - прогнозно',predicted_rest:'Почивка - прогнозно',missing:'Няма данни'
+const refs={
+  loginView:document.getElementById('loginView'),scheduleView:document.getElementById('scheduleView'),workNumber:document.getElementById('workNumber'),loginButton:document.getElementById('loginButton'),loginMessage:document.getElementById('loginMessage'),logoutButton:document.getElementById('logoutButton'),employeeName:document.getElementById('employeeName'),employeeNumber:document.getElementById('employeeNumber'),employeeTeam:document.getElementById('employeeTeam'),scheduleStatus:document.getElementById('scheduleStatus'),todayValue:document.getElementById('todayValue'),todayLabel:document.getElementById('todayLabel'),todaySub:document.getElementById('todaySub'),nextWorkValue:document.getElementById('nextWorkValue'),nextWorkSub:document.getElementById('nextWorkSub'),sourceValue:document.getElementById('sourceValue'),sourceSub:document.getElementById('sourceSub'),scheduleNotice:document.getElementById('scheduleNotice'),noticeTitle:document.getElementById('noticeTitle'),noticeText:document.getElementById('noticeText'),noticeMeta:document.getElementById('noticeMeta'),calendarCard:document.getElementById('calendarCard'),prevMonth:document.getElementById('prevMonth'),nextMonth:document.getElementById('nextMonth'),monthTitle:document.getElementById('monthTitle'),monthSub:document.getElementById('monthSub'),calendar:document.getElementById('calendar'),dayDetail:document.getElementById('dayDetail'),dayDetailTitle:document.getElementById('dayDetailTitle'),dayDetailText:document.getElementById('dayDetailText'),dayDetailCode:document.getElementById('dayDetailCode'),summary:document.getElementById('summary'),sourceNote:document.getElementById('sourceNote')
 };
+
+const labels={day:'Дневна смяна',night:'Нощна смяна',leave:'Отпуск',sick_leave:'Болничен',rest:'Почивка',unknown:'Неизвестен код',predicted_work:'Работа - прогнозно',predicted_rest:'Почивка - прогнозно',missing:'Няма данни'};
 const displayCodes={day:'1',night:'2',leave:'О',sick_leave:'Б',rest:'•',predicted_work:'≈',predicted_rest:'•',missing:'—'};
+const workTypes=new Set(['day','night','predicted_work']);
+
+refs.loginButton.addEventListener('click',loginAndLoad);
+refs.workNumber.addEventListener('keydown',event=>{if(event.key==='Enter')loginAndLoad();});
+refs.logoutButton.addEventListener('click',logout);
+refs.prevMonth.addEventListener('click',()=>changeMonth(-1));
+refs.nextMonth.addEventListener('click',()=>changeMonth(1));
+
+function authHeaders(){return accessToken?{Authorization:`Bearer ${accessToken}`}:{}}
+function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}
+function localDate(value,options={day:'numeric',month:'long'}){return new Date(`${value}T00:00:00`).toLocaleDateString('bg-BG',options)}
+function setLoading(on){refs.calendarCard.classList.toggle('loading',on);refs.prevMonth.disabled=on;refs.nextMonth.disabled=on;}
 
 async function loginAndLoad(){
-  const workNumber=document.getElementById('workNumber').value.trim();
-  const message=document.getElementById('loginMessage');
-  if(!workNumber){message.textContent='Въведи работен номер.';return;}
-  const button=document.getElementById('loginButton');message.textContent='';button.disabled=true;button.textContent='Проверка...';
+  const workNumber=refs.workNumber.value.trim();
+  if(!workNumber){refs.loginMessage.textContent='Въведи работен номер.';return;}
+  refs.loginMessage.textContent='';refs.loginButton.disabled=true;refs.loginButton.textContent='Проверка...';
   try{
     const response=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({work_number:workNumber})});
-    const auth=await response.json();if(!response.ok)throw new Error(auth.detail||'Служителят не е намерен.');
-    token=auth.access_token;employeeName.textContent=auth.employee_name;employeeNumber.textContent=auth.work_number;employeeTeam.textContent=auth.team||'-';
-    loginView.classList.add('hidden');scheduleView.classList.remove('hidden');await loadSchedule();
-  }catch(error){message.textContent=error.message;}finally{button.disabled=false;button.textContent='Вход';}
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.detail||'Служителят не е намерен.');
+    accessToken=data.access_token;sessionStorage.setItem(TOKEN_KEY,accessToken);applyEmployee(data);showDashboard();await loadSchedule();
+  }catch(error){refs.loginMessage.textContent=error.message||'Неуспешен вход.';}finally{refs.loginButton.disabled=false;refs.loginButton.textContent='Покажи графика';}
 }
 
+async function restoreSession(){
+  if(!accessToken)return;
+  try{
+    const response=await fetch('/api/v1/me',{headers:authHeaders()});
+    if(!response.ok)throw new Error('session');
+    const data=await response.json();applyEmployee({employee_name:data.full_name,work_number:data.work_number,team:data.team});showDashboard();await loadSchedule();
+  }catch{logout(false);}
+}
+
+function applyEmployee(data){refs.employeeName.textContent=data.employee_name||data.full_name||'—';refs.employeeNumber.textContent=data.work_number||'—';refs.employeeTeam.textContent=data.team||'—';}
+function showDashboard(){refs.loginView.classList.add('hidden');refs.scheduleView.classList.remove('hidden');}
+
 async function loadSchedule(){
-  if(!token)return;
-  const response=await fetch(`/api/v1/me/schedule/${currentYear}/${currentMonth}`,{headers:{Authorization:`Bearer ${token}`}});
-  const data=await response.json();if(!response.ok){alert(data.detail||'Грешка при зареждане на графика.');return;}
-  employeeName.textContent=data.employee_name;employeeNumber.textContent=data.work_number;employeeTeam.textContent=data.team||'-';renderCalendar(data);
+  if(!accessToken)return;
+  setLoading(true);
+  try{
+    const response=await fetch(`/api/v1/me/schedule/${currentYear}/${currentMonth}`,{headers:authHeaders()});
+    const data=await response.json();
+    if(response.status===401){logout();return;}
+    if(!response.ok)throw new Error(data.detail||'Грешка при зареждане на графика.');
+    currentSchedule=data;applyEmployee(data);renderSchedule(data);
+  }catch(error){refs.sourceNote.textContent=error.message||'Графикът не може да бъде зареден.';}finally{setLoading(false);}
+}
+
+function renderSchedule(data){
+  const monthDate=new Date(data.year,data.month-1,1);
+  refs.monthTitle.textContent=monthDate.toLocaleDateString('bg-BG',{month:'long',year:'numeric'});
+  refs.monthSub.textContent=data.schedule_status==='official'?'Официален график':data.schedule_status==='partial'?`${data.missing_days||0} дни без данни`:'Автоматична прогноза 2×2';
+  renderStatus(data);renderCalendar(data);renderSummary(data);renderHero(data);renderNotice(data);
+}
+
+function renderStatus(data){
+  refs.scheduleStatus.className='status-pill '+(data.schedule_status||'official');
+  const text={official:'Официален',partial:'Частичен',estimated:'Прогнозен'}[data.schedule_status]||'График';
+  refs.scheduleStatus.textContent=text;
+  if(data.schedule_status==='official'){refs.sourceValue.textContent='Официален график';refs.sourceSub.textContent='Данните са импортирани от актуален служебен файл.';refs.sourceNote.textContent='Източник: официално импортиран график.';}
+  else if(data.schedule_status==='partial'){refs.sourceValue.textContent='Частични данни';refs.sourceSub.textContent=`${data.missing_days||0} дни нямат официален запис.`;refs.sourceNote.textContent='Източник: частично импортиран официален график.';}
+  else{refs.sourceValue.textContent='Прогноза 2×2';refs.sourceSub.textContent='Не е наличен официален график за избрания месец.';refs.sourceNote.textContent='Източник: автоматичен 2×2 fallback - не е официален график.';}
 }
 
 function renderCalendar(data){
-  const monthDate=new Date(data.year,data.month-1,1);monthTitle.textContent=monthDate.toLocaleDateString('bg-BG',{month:'long',year:'numeric'});
-  const root=document.getElementById('calendar');root.innerHTML='';
-  const lookup=Object.fromEntries(data.shifts.map(s=>[Number(s.work_date.slice(-2)),s]));
-  const days=new Date(data.year,data.month,0).getDate();
+  refs.calendar.innerHTML='';refs.dayDetail.classList.add('hidden');
+  const days=data.days_in_month||new Date(data.year,data.month,0).getDate();
   const firstWeekday=(new Date(data.year,data.month-1,1).getDay()+6)%7;
-  for(let i=0;i<firstWeekday;i++){const blank=document.createElement('div');blank.className='day empty';root.appendChild(blank);}
-
-  const totals={day:0,night:0,leave:0,sick_leave:0,rest:0,predicted_work:0,predicted_rest:0,missing:0};
-  for(let d=1;d<=days;d++){
-    const shift=lookup[d]||{shift_type:'missing',raw_code:'',estimated:false};
-    totals[shift.shift_type]=(totals[shift.shift_type]||0)+1;
-    const el=document.createElement('div');el.className=`day type-${shift.shift_type}`;
-    if(data.year===now.getFullYear()&&data.month===now.getMonth()+1&&d===now.getDate())el.classList.add('today');
+  for(let i=0;i<firstWeekday;i++){const blank=document.createElement('div');blank.className='day empty';refs.calendar.appendChild(blank);}
+  const lookup=new Map((data.shifts||[]).map(shift=>[Number(shift.work_date.slice(-2)),shift]));
+  for(let day=1;day<=days;day++){
+    const fallbackDate=`${data.year}-${String(data.month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const shift=lookup.get(day)||{work_date:fallbackDate,shift_type:'missing',raw_code:'',estimated:false};
+    const cell=document.createElement('button');cell.type='button';cell.className=`day type-${shift.shift_type}`;cell.setAttribute('aria-label',`${day} - ${labels[shift.shift_type]||shift.shift_type}`);
+    if(data.year===now.getFullYear()&&data.month===now.getMonth()+1&&day===now.getDate())cell.classList.add('today');
     const code=shift.raw_code||displayCodes[shift.shift_type]||'?';
-    el.innerHTML=`<div class="date">${d}</div>${shift.estimated?'<span class="estimated-tag">ПРОГНОЗА</span>':''}<div class="shift-code">${escapeHtml(code)}</div><div class="shift-label">${labels[shift.shift_type]||shift.shift_type}</div>`;
-    root.appendChild(el);
+    cell.innerHTML=`<span class="date-num">${day}</span>${shift.estimated?'<span class="estimated-tag">ПРОГНОЗА</span>':''}<div class="code">${escapeHtml(code)}</div><div class="shift-label">${escapeHtml(labels[shift.shift_type]||shift.shift_type)}</div>`;
+    cell.addEventListener('click',()=>selectDay(cell,shift));refs.calendar.appendChild(cell);
   }
+}
 
-  renderNotice(data);
-  renderSummary(data,totals);
+function selectDay(cell,shift){
+  refs.calendar.querySelectorAll('.day.selected').forEach(item=>item.classList.remove('selected'));cell.classList.add('selected');refs.dayDetail.classList.remove('hidden');refs.dayDetailTitle.textContent=`${localDate(shift.work_date,{weekday:'long',day:'numeric',month:'long'})} - ${labels[shift.shift_type]||shift.shift_type}`;refs.dayDetailCode.textContent=shift.raw_code||displayCodes[shift.shift_type]||'?';refs.dayDetailText.textContent=shift.estimated?'Този ден е автоматично изчислен и е ориентировъчен.':shift.shift_type==='missing'?'За този ден няма официален запис.':'Официален запис за избрания месец.';
+}
+
+function renderSummary(data){
+  const totals=data.summary||deriveSummary(data.shifts||[]);
+  if(data.is_estimated){refs.summary.innerHTML=stat(totals.predicted_work,'Работни - прогноза')+stat(totals.predicted_rest,'Почивки - прогноза');return;}
+  refs.summary.innerHTML=stat(totals.day,'Дневни')+stat(totals.night,'Нощни')+stat(totals.leave,'Отпуск')+stat(totals.sick_leave,'Болнични')+stat(totals.rest,'Почивки')+(totals.missing?stat(totals.missing,'Без данни'):'');
+}
+function stat(value,label){return `<div class="stat"><strong>${Number(value)||0}</strong><small>${escapeHtml(label)}</small></div>`;}
+function deriveSummary(shifts){const result={day:0,night:0,leave:0,sick_leave:0,rest:0,unknown:0,predicted_work:0,predicted_rest:0,missing:0};for(const shift of shifts){result[shift.shift_type]=(result[shift.shift_type]||0)+1;}return result;}
+
+function renderHero(data){
+  const todayIso=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const shifts=data.shifts||[];const todayShift=data.year===now.getFullYear()&&data.month===now.getMonth()+1?shifts.find(item=>item.work_date===todayIso):null;
+  if(todayShift){refs.todayValue.textContent=todayShift.raw_code||displayCodes[todayShift.shift_type]||'?';refs.todayLabel.textContent=labels[todayShift.shift_type]||todayShift.shift_type;refs.todaySub.textContent=todayShift.estimated?'Ориентировъчен автоматичен график.':todayShift.shift_type==='missing'?'Няма официално въведени данни за днес.':'Официален запис за днешния ден.';}else{refs.todayValue.textContent='—';refs.todayLabel.textContent='Избран е друг месец';refs.todaySub.textContent='Върни се към текущия месец, за да видиш статуса за днес.';}
+  const startDate=data.year===now.getFullYear()&&data.month===now.getMonth()+1?todayIso:`${data.year}-${String(data.month).padStart(2,'0')}-01`;
+  const next=shifts.find(item=>item.work_date>=startDate&&workTypes.has(item.shift_type));
+  if(next){refs.nextWorkValue.textContent=localDate(next.work_date,{day:'numeric',month:'long'});refs.nextWorkSub.textContent=`${labels[next.shift_type]||next.shift_type}${next.estimated?' - прогнозно':''}.`;}else{refs.nextWorkValue.textContent='—';refs.nextWorkSub.textContent='Няма намерена работна смяна в избрания месец.';}
 }
 
 function renderNotice(data){
-  if(data.is_estimated){
-    scheduleNotice.classList.remove('hidden');estimatedLegend.classList.remove('hidden');noticeText.textContent=data.warning||'Показан е ориентировъчен автоматичен график 2 на 2.';
-    const confidence={high:'висока',medium:'средна',low:'ниска'}[data.fallback_confidence]||data.fallback_confidence||'неизвестна';
-    const basis=data.fallback_basis==='history'?'по последния наличен официален график':data.fallback_basis==='team'?'по постоянната смяна':'по базов 2×2 цикъл';
-    noticeMeta.textContent=`Фаза: ${basis}. Оценена увереност: ${confidence}.`;
-    sourceNote.textContent='Източник: автоматичен 2×2 fallback - не е официален график.';
-  }else{
-    scheduleNotice.classList.add('hidden');estimatedLegend.classList.add('hidden');noticeText.textContent='';noticeMeta.textContent='';sourceNote.textContent='Източник: импортиран график.';
-  }
+  if(data.schedule_status==='official'){refs.scheduleNotice.classList.add('hidden');return;}
+  refs.scheduleNotice.className='notice'+(data.schedule_status==='partial'?' partial':'');refs.noticeTitle.textContent=data.schedule_status==='partial'?'Графикът е частично обновен':'Графикът още не е обновен';refs.noticeText.textContent=data.warning||'Има непълни или прогнозни данни за този месец.';
+  if(data.is_estimated){const confidence={high:'висока',medium:'средна',low:'ниска'}[data.fallback_confidence]||'ниска';const basis=data.fallback_basis==='history'?'по последния наличен официален график':data.fallback_basis==='team'?'по постоянната смяна':'по базов 2×2 цикъл';refs.noticeMeta.textContent=`Прогнозата е изчислена ${basis}. Увереност: ${confidence}.`;}
+  else{refs.noticeMeta.textContent=`Дни без официални данни: ${data.missing_days||0}.`;}
 }
-
-function renderSummary(data,t){
-  if(data.is_estimated){
-    summary.innerHTML=stat(t.predicted_work,'Прогнозни работни')+stat(t.predicted_rest,'Прогнозни почивки')+stat(t.missing,'Без данни');
-  }else{
-    summary.innerHTML=stat(t.day,'Дневни')+stat(t.night,'Нощни')+stat(t.leave,'Отпуск')+stat(t.sick_leave,'Болнични')+stat(t.rest,'Почивки')+(t.missing?stat(t.missing,'Без данни'):'');
-  }
-}
-function stat(value,label){return `<div class="stat"><strong>${value||0}</strong><small>${label}</small></div>`;}
 
 function changeMonth(delta){currentMonth+=delta;if(currentMonth===0){currentMonth=12;currentYear--;}if(currentMonth===13){currentMonth=1;currentYear++;}loadSchedule();}
-function logout(){token=null;workNumber.value='';scheduleView.classList.add('hidden');loginView.classList.remove('hidden');calendar.innerHTML='';scheduleNotice.classList.add('hidden');}
-function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function logout(showLogin=true){accessToken=null;currentSchedule=null;sessionStorage.removeItem(TOKEN_KEY);refs.workNumber.value='';refs.scheduleView.classList.add('hidden');refs.loginView.classList.toggle('hidden',!showLogin);refs.calendar.innerHTML='';refs.loginMessage.textContent='';}
+restoreSession();
 </script>
 </body>
 </html>
